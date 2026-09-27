@@ -1,0 +1,6 @@
+numpy>=1.24
+matplotlib>=3.7
+PyYAML>=6.0
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.14.0+cpu
+pytest>=7.0

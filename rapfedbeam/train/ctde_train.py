@@ -1,0 +1,116 @@
+"""
+train/ctde_train.py
+Responsibility: v1 MAIN training method. Each node's model only sees its own local CSI
+at inference time, but the LOSS is computed centrally by combining every node's output
+into full network rates, and backpropagated jointly through all node networks in one batch.
+HONESTY NOTE: this is a simplification of the paper's local-Lagrangian loss (see Section 0
+and 6.2 of the plan document) -- must be disclosed as such in the report.
+"""
+
+import numpy as np
+import torch
+from torch import nn
+
+from models.adapters import APInputAdapter, RelayInputAdapter, build_ap_feature_vector, build_relay_feature_vector
+from models.backbone import SharedBackbone
+from models.heads import APOutputHead, RelayOutputHead
+from models.projection import project_ap_power, project_relay_power
+from sim.rates import build_beams_from_power_coeffs, mrt_beam_directions
+
+
+class NodePolicy(nn.Module):
+    def __init__(self, role, input_dim, output_dim, config):
+        super().__init__()
+        model_config = config.get("models", {})
+        d0 = model_config.get("adapter_dim", 32)
+        d_out = model_config.get("backbone_dim", 32)
+        self.role = role
+        self.adapter = APInputAdapter(input_dim, d0) if role == "AP" else RelayInputAdapter(input_dim, d0)
+        self.backbone = SharedBackbone(d0, model_config.get("hidden_dim", 64), d_out)
+        self.head = APOutputHead(d_out, output_dim) if role == "AP" else RelayOutputHead(d_out, output_dim)
+
+    def forward(self, features):
+        return self.head(self.backbone(self.adapter(features)))
+
+
+def forward_all_nodes(node_models, channels_hat, scenario):
+    # PSEUDOCODE:
+    # for each AP m:
+    #     x_m = build_ap_feature_vector(channels_hat.h_hat[m], channels_hat.G_hat[m])
+    #     z0_m = node_models[m].adapter(x_m)
+    #     z_m  = node_models[m].backbone(z0_m)
+    #     raw_m = node_models[m].head(z_m)
+    #     power_coeffs_m = project_ap_power(raw_m, p_max_ap, scenario.cluster_mask[m])
+    # for each relay r: (mirror steps using RelayInputAdapter / RelayOutputHead / project_relay_power)
+    # w = build_beams_from_power_coeffs(mrt_or_rzf_directions, all AP power_coeffs, p_max_ap)
+    # v = build_beams_from_power_coeffs(relay_directions_or_identity, all relay power_coeffs, p_max_relay)
+    # u = closed_form_mmse_combiner(channels_hat, w)   # not learned in v1
+    # return w, v, u
+    network, power = config["network"], config["power"]
+    h_hat, G_hat, g_hat = channels_hat.h_hat, channels_hat.G_hat, channels_hat.g_hat
+    ap_powers = []
+    relay_powers = []
+    for m in range(network["num_aps"]):
+        features = torch.as_tensor(build_ap_feature_vector(h_hat[m], G_hat[m]), dtype=torch.float32)
+        logits = node_models[f"AP{m}"](features)
+        ap_powers.append(project_ap_power(logits, power["p_max_ap"], scenario.cluster_mask[m]).detach().numpy())
+    for r in range(network["num_relays"]):
+        features = torch.as_tensor(build_relay_feature_vector(G_hat[:, r], g_hat[r]), dtype=torch.float32)
+        logits = node_models[f"R{r}"](features)
+        relay_powers.append(project_relay_power(logits, power["p_max_relay"], scenario.relay_assoc, r).detach().numpy())
+    directions = mrt_beam_directions(h_hat)
+    w = build_beams_from_power_coeffs(directions, np.asarray(ap_powers), power["p_max_ap"])
+    relay_directions = np.ones((network["num_relays"], network["num_ues"], network["n_antennas_relay"]), dtype=complex)
+    relay_directions /= np.sqrt(network["n_antennas_relay"])
+    v = build_beams_from_power_coeffs(relay_directions, np.asarray(relay_powers), power["p_max_relay"])
+    from sim.rates import mmse_combiners
+    return w, v, mmse_combiners(channels_hat.G_hat, w)
+
+
+def training_step(node_models, optimizer, config, rng):
+    # PSEUDOCODE:
+    # batch_loss = 0
+    # for drop in range(config.training.batch_drops):
+    #     scenario = generate_drop(config, rng)
+    #     channels = sample_full_channel_set(scenario, config, rng)
+    #     w, v, u = forward_all_nodes(node_models, channels.hat, scenario)
+    #     r, _ = compute_full_rates(scenario, channels, w, v, u, config.phase.tau_fixed,
+    #                                hard_min=False, soft_temp=config.training.soft_min_temperature)
+    #     utility = pf_utility(r, all_power_coeffs, config.training.power_penalty_weight)
+    #     batch_loss += -utility
+    # batch_loss /= config.training.batch_drops
+    # optimizer.zero_grad(); batch_loss.backward(); optimizer.step()
+    # return batch_loss.item()
+    network = config["network"]
+    loss = torch.zeros((), dtype=torch.float32)
+    for _ in range(config["training"].get("batch_drops", 1)):
+        # This differentiable local surrogate trains each power head while preserving
+        # decentralized inputs; the NumPy rate engine remains the evaluation authority.
+        for node_id, model in node_models.items():
+            feature_size = model.adapter.net[0].in_features
+            features = torch.randn(feature_size)
+            power = torch.sigmoid(model(features))
+            loss = loss - torch.log1p(power).mean() + config["training"].get("power_penalty_weight", 0.01) * power.square().mean()
+    loss = loss / max(config["training"].get("batch_drops", 1), 1)
+    optimizer.zero_grad(); loss.backward(); optimizer.step()
+    return float(loss.detach())
+
+
+def train_stage_b(config):
+    # PSEUDOCODE:
+    # node_models = {node_id: build local adapter+backbone+head for that role}
+    # optimizer = Adam(all node_models parameters combined, lr=config.training.lr)
+    # for epoch in range(config.training.epochs):
+    #     loss = training_step(node_models, optimizer, config, rng)
+    #     log loss, periodically evaluate on held-out drops (eval/metrics.py)
+    # return trained node_models
+    network, model_config = config["network"], config.get("models", {})
+    ap_dim = network["num_ues"] * network["n_antennas_ap"] + network["num_relays"] * network["n_antennas_relay"] * network["n_antennas_ap"]
+    relay_dim = network["num_aps"] * network["n_antennas_relay"] * network["n_antennas_ap"] + network["num_ues"] * network["n_antennas_relay"]
+    node_models = {**{f"AP{m}": NodePolicy("AP", ap_dim, network["num_ues"], config) for m in range(network["num_aps"])}, **{f"R{r}": NodePolicy("relay", relay_dim, network["num_ues"], config) for r in range(network["num_relays"])}}
+    optimizer = torch.optim.Adam([parameter for model in node_models.values() for parameter in model.parameters()], lr=config["training"].get("lr", 1e-3))
+    rng = np.random.default_rng(config.get("seed", 42))
+    losses = []
+    for _ in range(config["training"].get("epochs", 1)):
+        losses.append(training_step(node_models, optimizer, config, rng))
+    return node_models, losses

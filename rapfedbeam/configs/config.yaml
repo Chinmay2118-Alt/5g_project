@@ -1,0 +1,57 @@
+# --- Reduced-scope RAP-FedBeam config ---
+
+network:
+  num_aps: 8          # M, range 8-16
+  num_relays: 2        # R, range 2-4
+  num_ues: 8           # K, range 6-10
+  n_antennas_ap: 2     # N_A
+  n_antennas_relay: 2  # N_R
+  l_max: 1             # single relay per user, fixed in v1
+
+phase:
+  tau_fixed: 0.5
+  tau_sweep: [0.3, 0.4, 0.5, 0.6, 0.7]
+
+blockage:
+  frac_blocked_ues: 0.3     # 30% of UEs behind blockage
+  extra_loss_db: 25         # 20-30 dB extra path loss
+
+simulation:
+  area_size: 500.0
+  path_loss_exponent: 3.2
+  shadow_std_db: 4.0
+
+aging:
+  enabled: false
+  rho_h: 0.95
+  rho_G: 0.95
+  rho_g: 0.95
+
+power:
+  p_max_ap: 1.0        # normalized units
+  p_max_relay: 1.0
+
+training:
+  mode: "ctde"          # "ctde" (Stage B) or "local_zeta" (Stage C)
+  batch_drops: 64        # number of network drops per training batch
+  epochs: 200
+  lr: 1.0e-3
+  power_penalty_weight: 0.01
+  soft_min_temperature: 5.0   # for log-sum-exp soft-min DF rate during training
+
+models:
+  adapter_dim: 32
+  hidden_dim: 64
+  backbone_dim: 32
+
+fl:
+  mode: "topology_kernel"     # "local_only" | "fedavg" | "topology_kernel"
+  rounds: 100
+  local_steps_per_round: 5
+  kernel_sigma: 1.0
+  kappa_ap_ap: 1.0
+  kappa_relay_relay: 1.0
+  kappa_ap_relay: 0.3   # swept in ablation E5: [0, 0.3, 0.6, 1.0]
+  rho_p: 0.5            # blend rate theta_hat -> theta
+
+seed: 42
