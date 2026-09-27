@@ -21,7 +21,7 @@ def aggregate_local_only(node_backbones_after, **kwargs):
     return node_backbones_after
 
 
-def aggregate_fedavg(deltas, participating_ids):
+def aggregate_fedavg(deltas, node_backbones_before, participating_ids):
     # PSEUDOCODE:
     # avg_delta = mean(deltas[i] for i in participating_ids)   # elementwise average, uniform
     # new_state = {i: node_backbones_before[i] + avg_delta for i in participating_ids}
@@ -53,7 +53,7 @@ def run_aggregation_round(mode, node_backbones_before, node_backbones_after, alp
         return aggregate_local_only(node_backbones_after)
     ids = list(node_backbones_before)
     if mode == "fedavg":
-        return aggregate_fedavg(compute_deltas(node_backbones_before, node_backbones_after), ids)
+        return aggregate_fedavg(compute_deltas(node_backbones_before, node_backbones_after), node_backbones_before, ids)
     if mode == "topology_kernel":
         if alpha is None or rho_p is None:
             raise ValueError("topology_kernel aggregation requires alpha and rho_p")

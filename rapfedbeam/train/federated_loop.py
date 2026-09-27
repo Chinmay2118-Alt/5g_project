@@ -89,7 +89,7 @@ def run_federated_experiment(config, fl_mode):
         if fl_mode == "local_only":
             updated = aggregate_local_only(after)
         elif fl_mode == "fedavg":
-            updated = aggregate_fedavg(deltas, ids)
+            updated = aggregate_fedavg(deltas, before, ids)
         elif fl_mode == "topology_kernel":
             updated = aggregate_topology_kernel(deltas, alpha, before, config["fl"].get("rho_p", 0.5), ids)
         else:
