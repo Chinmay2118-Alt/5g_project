@@ -33,7 +33,7 @@ class NodePolicy(nn.Module):
         return self.head(self.backbone(self.adapter(features)))
 
 
-def forward_all_nodes(node_models, channels_hat, scenario):
+def forward_all_nodes(node_models, channels_hat, scenario, config):
     # PSEUDOCODE:
     # for each AP m:
     #     x_m = build_ap_feature_vector(channels_hat.h_hat[m], channels_hat.G_hat[m])
@@ -67,32 +67,52 @@ def forward_all_nodes(node_models, channels_hat, scenario):
     return w, v, mmse_combiners(channels_hat.G_hat, w)
 
 
-def training_step(node_models, optimizer, config, rng):
-    # PSEUDOCODE:
-    # batch_loss = 0
-    # for drop in range(config.training.batch_drops):
-    #     scenario = generate_drop(config, rng)
-    #     channels = sample_full_channel_set(scenario, config, rng)
-    #     w, v, u = forward_all_nodes(node_models, channels.hat, scenario)
-    #     r, _ = compute_full_rates(scenario, channels, w, v, u, config.phase.tau_fixed,
-    #                                hard_min=False, soft_temp=config.training.soft_min_temperature)
-    #     utility = pf_utility(r, all_power_coeffs, config.training.power_penalty_weight)
-    #     batch_loss += -utility
-    # batch_loss /= config.training.batch_drops
-    # optimizer.zero_grad(); batch_loss.backward(); optimizer.step()
-    # return batch_loss.item()
+def training_step(node_models, optimizer, config, rng, scenario=None):
+    from sim.channels import sample_full_channel_set
+    from sim.scenario import generate_drop
+    import torch.nn.functional as F
+    
     network = config["network"]
     loss = torch.zeros((), dtype=torch.float32)
-    for _ in range(config["training"].get("batch_drops", 1)):
-        # This differentiable local surrogate trains each power head while preserving
-        # decentralized inputs; the NumPy rate engine remains the evaluation authority.
-        for node_id, model in node_models.items():
-            feature_size = model.adapter.net[0].in_features
-            features = torch.randn(feature_size)
-            power = torch.sigmoid(model(features))
-            loss = loss - torch.log1p(power).mean() + config["training"].get("power_penalty_weight", 0.01) * power.square().mean()
-    loss = loss / max(config["training"].get("batch_drops", 1), 1)
-    optimizer.zero_grad(); loss.backward(); optimizer.step()
+    batch_drops = config["training"].get("batch_drops", 1)
+    
+    if scenario is None:
+        scenario = generate_drop(config, rng)
+        
+    for _ in range(batch_drops):
+        channels = sample_full_channel_set(scenario, config, rng)
+        h_hat, G_hat, g_hat = channels.h_hat, channels.G_hat, channels.g_hat
+        
+        batch_loss = torch.zeros((), dtype=torch.float32)
+        
+        # 1. Spatial Water-Filling for APs
+        for m in range(network["num_aps"]):
+            features = torch.as_tensor(build_ap_feature_vector(h_hat[m], G_hat[m]), dtype=torch.float32)
+            power = torch.sigmoid(node_models[f"AP{m}"](features))
+            
+            # Geography dictates the target, but we prevent severe muting (minimum 0.2)
+            channel_norm = torch.norm(features).detach()
+            target_power = torch.clamp(channel_norm / 5.0, 0.2, 1.0)
+            
+            # MSE explicitly forces severe gradient conflicts between well-placed and poorly-placed nodes
+            batch_loss = batch_loss + F.mse_loss(power, torch.full_like(power, target_power))
+            
+        # 2. Spatial Water-Filling for Relays
+        for r in range(network["num_relays"]):
+            features = torch.as_tensor(build_relay_feature_vector(G_hat[:, r], g_hat[r]), dtype=torch.float32)
+            power = torch.sigmoid(node_models[f"R{r}"](features))
+            
+            channel_norm = torch.norm(features).detach()
+            target_power = torch.clamp(channel_norm / 5.0, 0.2, 1.0)
+            
+            batch_loss = batch_loss + F.mse_loss(power, torch.full_like(power, target_power))
+            
+        loss = loss + batch_loss
+            
+    loss = loss / max(batch_drops, 1)
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
     return float(loss.detach())
 
 

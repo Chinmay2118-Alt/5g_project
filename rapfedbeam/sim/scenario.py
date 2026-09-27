@@ -41,13 +41,12 @@ def sample_positions(num_nodes, area_size, rng):
 
 
 def assign_blockage(ue_positions, frac_blocked, rng):
-    # PSEUDOCODE:
-    # randomly select frac_blocked fraction of UE indices
-    # return boolean mask [K]
     num_blocked = int(round(len(ue_positions) * frac_blocked))
     mask = np.zeros(len(ue_positions), dtype=bool)
     if num_blocked:
-        mask[rng.choice(len(ue_positions), size=num_blocked, replace=False)] = True
+        # Sort by X coordinate to force geographic clustering (non-IID environment)
+        sorted_indices = np.argsort(ue_positions[:, 0])
+        mask[sorted_indices[-num_blocked:]] = True 
     return mask
 
 
