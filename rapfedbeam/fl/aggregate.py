@@ -8,11 +8,13 @@ Paper mapping: Sec. XXVI-XXVII
 import torch
 
 def compute_deltas(node_backbones_before, node_backbones_after):
+    # All keys in backbone.state_dict() are backbone parameters (e.g. "net.0.weight").
+    # Do NOT filter by key name — that would discard everything.
     return {
         node_id: {
-            key: node_backbones_after[node_id][key] - node_backbones_before[node_id][key] 
-            for key in node_backbones_before[node_id] if 'backbone' in key.lower()
-        } 
+            key: node_backbones_after[node_id][key] - node_backbones_before[node_id][key]
+            for key in node_backbones_before[node_id]
+        }
         for node_id in node_backbones_before
     }
 
@@ -25,10 +27,7 @@ def aggregate_fedavg(deltas, node_backbones_before, participating_ids):
     for node_id in ids:
         result[node_id] = {}
         for key in node_backbones_before[node_id]:
-            if 'backbone' in key.lower():
-                result[node_id][key] = node_backbones_before[node_id][key] + sum(deltas[j][key] for j in ids) / len(ids)
-            else:
-                result[node_id][key] = node_backbones_before[node_id][key]
+            result[node_id][key] = node_backbones_before[node_id][key] + sum(deltas[j][key] for j in ids) / len(ids)
     return result
 
 def aggregate_topology_kernel(deltas, alpha, node_backbones_before, rho_p, participating_ids):
@@ -37,11 +36,8 @@ def aggregate_topology_kernel(deltas, alpha, node_backbones_before, rho_p, parti
     for row, node_id in enumerate(ids):
         result[node_id] = {}
         for key in node_backbones_before[node_id]:
-            if 'backbone' in key.lower():
-                theta_hat = node_backbones_before[node_id][key] + sum(alpha[row, col] * deltas[other][key] for col, other in enumerate(ids))
-                result[node_id][key] = (1.0 - rho_p) * node_backbones_before[node_id][key] + rho_p * theta_hat
-            else:
-                result[node_id][key] = node_backbones_before[node_id][key]
+            theta_hat = node_backbones_before[node_id][key] + sum(alpha[row, col] * deltas[other][key] for col, other in enumerate(ids))
+            result[node_id][key] = (1.0 - rho_p) * node_backbones_before[node_id][key] + rho_p * theta_hat
     return result
 
 def run_aggregation_round(mode, node_backbones_before, node_backbones_after, alpha=None, rho_p=None):

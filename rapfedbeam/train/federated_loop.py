@@ -71,7 +71,7 @@ def run_federated_experiment(config, fl_mode):
         # 4. Evaluate PF Utility on unseen holdout drops using the wrapper
         def rate_evaluator(scenario, channels):
             w, v, u = forward_all_nodes(node_models, channels, scenario, config)
-            r, _ = compute_full_rates(scenario, channels, w, v, u, config["fl"].get("tau", 0.5), hard_min=True)
+            r, _ = compute_full_rates(scenario, channels, w, v, u, config["phase"]["tau_fixed"], hard_min=True)
             return r
 
         # Pass scenario=base_scenario to lock the evaluation geography
