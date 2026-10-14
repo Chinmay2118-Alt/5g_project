@@ -23,6 +23,16 @@ def compute_node_signature(node_id, role, beta_to_ues, interference_estimate, lo
     return np.concatenate([beta_norm.ravel(), [(interference.mean() - 0.0) / (abs(interference).mean() + 1e-8)], [load.mean()], [1.0 if role.lower() == "ap" else 0.0]]).astype(np.float32)
 
 
+import re
+
+def _parse_node_index(node_id):
+    """Extract the integer index from a node ID string like 'AP0', 'AP12', 'R0', 'R1'."""
+    match = re.search(r'\d+$', str(node_id))
+    if match is None:
+        raise ValueError(f"Cannot parse integer index from node_id: {node_id!r}")
+    return int(match.group())
+
+
 def compute_all_signatures(scenario, channels, node_list):
     # PSEUDOCODE:
     # for each node i in node_list (APs then relays):
@@ -35,10 +45,16 @@ def compute_all_signatures(scenario, channels, node_list):
     beta_ap = np.asarray(getattr(scenario, "beta_ap_ue_db"))
     beta_relay = np.asarray(getattr(scenario, "beta_relay_ue_db"))
     for node_id in node_list:
-        if str(node_id).upper().startswith("A") or (isinstance(node_id, int) and node_id < beta_ap.shape[0]):
-            index = int(str(node_id).lstrip("APap") or node_id)
-            signatures[node_id] = compute_node_signature(node_id, "AP", beta_ap[index], 0.0, scenario.cluster_mask[index].mean())
+        node_str = str(node_id).upper()
+        if node_str.startswith("AP"):
+            index = _parse_node_index(node_id)
+            signatures[node_id] = compute_node_signature(
+                node_id, "AP", beta_ap[index], 0.0, scenario.cluster_mask[index].mean()
+            )
         else:
-            index = int(str(node_id).lstrip("Rrelay"))
-            signatures[node_id] = compute_node_signature(node_id, "relay", beta_relay[index], 0.0, (scenario.relay_assoc == index).mean())
+            index = _parse_node_index(node_id)
+            signatures[node_id] = compute_node_signature(
+                node_id, "relay", beta_relay[index], 0.0,
+                (scenario.relay_assoc == index).mean()
+            )
     return signatures
