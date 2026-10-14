@@ -104,7 +104,7 @@ def phase2_sinr_ue(g_rk, v, relay_assoc, noise_var_k):
         assigned = int(relay_assoc[k])
         if assigned < 0:
             continue
-        gains = np.einsum("rn,rja->rj", np.conj(g_rk[:, k, :]), v)
+        gains = np.einsum("rn,rjn->rj", np.conj(g_rk[:, k, :]), v)
         desired = abs(gains[assigned, k]) ** 2
         interference = sum(abs(gains[r, j]) ** 2 for r in range(num_relays) for j in range(num_ues) if j != k)
         gamma[k] = desired / (interference + noise_var_k)
@@ -162,15 +162,36 @@ def compute_full_rates(scenario, channels, w, v, u, tau, hard_min=True, soft_tem
     return rates, {"gamma1": gamma1, "gamma_AR": gamma_ar, "gamma2": gamma2, "C_D": C_D, "C_AR": C_AR}
 
 
-def mmse_combiners(G_mr, w, noise_var=1e-3):
-    """Return normalized per-relay/user combiners from effective AP-relay channels."""
-    G_mr, w = np.asarray(G_mr), np.asarray(w)
+def mmse_combiners(G_hat, w, noise_var=1e-3):
+    """Return normalized per-relay/user MMSE combiners from effective AP-relay channel estimates.
+
+    Args:
+        G_hat:     AP-to-relay channel estimates, shape [M, R, N_R, N_A]
+        w:         AP beamforming weights, shape [M, K, N_A]
+        noise_var: noise variance at relay receive antennas (also used for regularization)
+    """
+    G_mr, w = np.asarray(G_hat), np.asarray(w)
     num_relays, num_ues, n_relay = G_mr.shape[1], w.shape[1], G_mr.shape[2]
     combiners = np.zeros((num_relays, num_ues, n_relay), dtype=np.complex128)
     for r in range(num_relays):
+        # Effective channel: shape [R, N_R, K]; effective[r] = [N_R, K]
         effective = np.einsum("mrna,mka->rnk", G_mr, w)
-        covariance = effective[r] @ effective[r].conj().T + noise_var * np.eye(n_relay)
+        eff_r = effective[r]  # [N_R, K]
+        # Covariance = Σ_k e_k e_k^H + noise * I.  Add trace-based regularisation
+        # to ensure positive definiteness even when all beams are near-zero.
+        cov_signal = eff_r @ eff_r.conj().T
+        reg = max(float(np.real(np.trace(cov_signal))) * 1e-4, noise_var)
+        covariance = cov_signal + reg * np.eye(n_relay)
         for k in range(num_ues):
-            vector = np.linalg.solve(covariance, effective[r, :, k])
-            combiners[r, k] = vector / max(np.linalg.norm(vector), 1e-12)
+            rhs = eff_r[:, k]
+            try:
+                vector = np.linalg.solve(covariance, rhs)
+            except np.linalg.LinAlgError:
+                vector = rhs.copy()          # fallback: matched filter
+            if not np.all(np.isfinite(vector)):
+                vector = rhs.copy()          # fallback on NaN/Inf from solver
+            norm = float(np.linalg.norm(vector))
+            if norm > 1e-12 and np.isfinite(norm):
+                combiners[r, k] = vector / norm
+            # else: leave combiner as zero (relay produces no useful signal for this UE)
     return combiners

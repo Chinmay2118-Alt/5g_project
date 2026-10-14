@@ -44,7 +44,7 @@ def evaluate_drop(config, rng, use_relay=True, allocation="equal", tau=None):
     )
     relay_directions /= np.sqrt(config["network"]["n_antennas_relay"])
     beams_relay = build_beams_from_power_coeffs(relay_directions, relay_coeffs, config["power"]["p_max_relay"])
-    combiners = mmse_combiners(channels.G_mr, beams_ap)
+    combiners = mmse_combiners(channels.G_hat, beams_ap)
     rates, debug = compute_full_rates(
         scenario,
         channels,
