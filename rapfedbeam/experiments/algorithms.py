@@ -60,7 +60,7 @@ class CentralizedWMMSE(Algorithm):
 @register
 class CentralizedWMMSENoRelay(Algorithm):
     name = "centralized_no_relay"
-    label = "Centralized WMMSE, no relay"
+    label = "Centralized WMMSE, no relay (τ = 1)"
 
     def solve(self, instance):
         from baselines.wmmse import centralized_wmmse

@@ -219,6 +219,11 @@ def centralized_wmmse(instance, use_relay=True, max_iters=None, tol=None, optimi
     optimize_tau = settings.get("optimize_tau", False) if optimize_tau is None else optimize_tau
     assoc = np.asarray(scenario.relay_assoc) if use_relay else np.full(config["network"]["num_ues"], -1)
     tau = instance.tau
+    if not use_relay:
+        # A network without relays has no Phase II, so its APs transmit for the whole interval. Holding
+        # it to tau <= tau_max would waste (1 - tau) of every block and flatter the relays. (A relay
+        # network that happens to relay no UE still follows P0's tau range.)
+        tau, optimize_tau = 1.0, False
 
     W, V = _initial_beams(instance, assoc)
     layout = _Layout(instance, assoc)

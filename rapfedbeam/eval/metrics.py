@@ -42,7 +42,11 @@ def check_feasibility(instance, solution, tol=1e-4):
     if np.any(active.sum(axis=1) > network.get("max_streams_per_relay", V.shape[1])):
         raise ValueError("relay capacity C_r^max violated")
     phase = instance.config["phase"]
-    if not phase.get("tau_min", 0.0) - tol <= solution.tau <= phase.get("tau_max", 1.0) + tol:
+    if not active.any():
+        # No relayed UE means no Phase II: a single-phase network may use the whole interval (tau = 1).
+        if not phase.get("tau_min", 0.0) - tol <= solution.tau <= 1.0 + tol:
+            raise ValueError("tau outside [tau_min, 1]")
+    elif not phase.get("tau_min", 0.0) - tol <= solution.tau <= phase.get("tau_max", 1.0) + tol:
         raise ValueError("tau outside [tau_min, tau_max]")
     norms = np.linalg.norm(np.asarray(solution.U), axis=-1)[active]
     if np.any((norms > tol) & (np.abs(norms - 1.0) > 1e-3)):

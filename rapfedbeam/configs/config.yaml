@@ -79,6 +79,8 @@ wmmse:
 fedwmmse:                   # RAP-FedWMMSE (train/rap_fedwmmse.py, docs/RAP_FEDWMMSE.md)
   layers: 6                  # L, unfolded WMMSE layers in training and deployment
   epochs: 30                 # E, federated epochs
+  redrop_every: 1            # a fresh UE drop on the same deployment every this many epochs (0: mobility only).
+                             # With one moving layout the model overfit it and starved a UE on new drops.
   local_steps: 4             # E_loc, local training steps per epoch
   batch_blocks: 8            # coherence blocks per local step
   lr: 3.0e-3                 # eta_theta
@@ -116,7 +118,7 @@ exact:
   frac_blocked_ues: 0.5
   time_limit_s: 300
   gap_limit: 0.01
-  optimize_association: false
+  optimize_association: true   # a_rk are binary variables, so SCIP solves the true MINLP; its bound covers every association
 
 training:                # the earlier neural CTDE baseline only (neural_ctde, run_federated.py)
   mode: "ctde"

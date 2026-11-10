@@ -9,7 +9,7 @@ The 14 graphs comparing the algorithms Sir asked for. `python run_experiments.py
 |---|---|
 | RAP-FedWMMSE | The proposed method (Sir's algorithm) |
 | Centralized WMMSE-SCA | Benchmark with full CSI at a CPU; optimizes τ too |
-| Centralized WMMSE, no relay | Shows what the relays add |
+| Centralized WMMSE, no relay (τ = 1) | Shows what the relays add; uses the whole interval since it has no Phase II |
 | Local-WMMSE (no FL) | Each node alone, without coordination or learning |
 | RZF, equal power and MRT, equal power | Simple heuristics |
 | Exact MINLP (B&B) | Global optimum with a certified bound, on a small network only |
@@ -39,9 +39,10 @@ The 14 graphs comparing the algorithms Sir asked for. `python run_experiments.py
 - **Same drops for every method.** They share AP and relay layouts (deployments), and training uses separate drops.
 - **Every method uses Step 1's association** with zero QoS prices. RAP-FedWMMSE also feeds in its own prices.
 - **τ is optimized by RAP-FedWMMSE** (per epoch) and by Centralized WMMSE (per block). Local-WMMSE and the
-  heuristics keep τ = 0.5, because without coordination no node can choose it.
-- **G08, G10 and G11 hold τ and association fixed for every method,** so all solve the same problem. G11's bound
-  is only valid under that condition.
+  heuristics keep τ = 0.5, the fixed split Sir's text calls conventional. G08 shows all methods at every fixed τ.
+- **The no-relay baseline uses τ = 1,** since a network without relays has no Phase II.
+- **G08, G10 and G11 hold τ and association fixed for every relay method,** so all solve the same problem. G11's
+  bound is valid under that condition; since SCIP also optimizes the association, it covers every association.
 - **G12 times inference.** For RAP-FedWMMSE that includes the slow-timescale warm-up but not the training, whose
   time is saved separately as `fit_seconds`.
 

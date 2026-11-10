@@ -16,6 +16,7 @@ import numpy as np
 from experiments.algorithms import REGISTRY, get_algorithm
 
 SURFACE, INK, INK_SECONDARY, GRID, AXIS = "#fcfcfb", "#0b0b0b", "#52514e", "#e1e0d9", "#c3c2b7"
+BOOTSTRAP_SAMPLES = 1000
 
 # Fixed slots: the color, marker and line style follow the algorithm, whichever others are present.
 # The two RAP-FedWMMSE ablations share its hue and differ by line style.
@@ -95,8 +96,17 @@ def _sweep_stat(point, name, statistic):
     elif statistic == "mean_rate":
         values = np.array([np.mean(record["rates"]) for record in records])
     elif statistic == "p5_rate":
-        # A single percentile over all UEs and drops, so it carries no per-drop interval.
-        return float(np.percentile(np.concatenate([record["rates"] for record in records]), 5)), 0.0
+        # A single percentile over all UEs and drops. Its 95% interval comes from a bootstrap that
+        # resamples whole drops, since the UEs of one drop are not independent.
+        per_drop = [np.asarray(record["rates"]) for record in records]
+        estimate = float(np.percentile(np.concatenate(per_drop), 5))
+        if len(per_drop) < 2:
+            return estimate, 0.0
+        rng = np.random.default_rng(0)
+        resampled = [np.percentile(np.concatenate([per_drop[i] for i in rng.integers(0, len(per_drop), len(per_drop))]), 5)
+                     for _ in range(BOOTSTRAP_SAMPLES)]
+        low, high = np.percentile(resampled, [2.5, 97.5])
+        return estimate, float((high - low) / 2.0)
     elif statistic == "seconds":
         values = np.array([record["seconds"] for record in records])
     else:

@@ -284,7 +284,11 @@ class RapFedWMMSETrainer:
         validation = [make_instance(config, self.seed, VALIDATION_DROPS + v, self.deployment) for v in range(s["validation_instances"])]
         history, total_bytes = [], 0
         for epoch in range(s["epochs"]):
-            if epoch:
+            redrop = s.get("redrop_every", 0)
+            if epoch and redrop and epoch % redrop == 0:
+                # New UEs arrive on the same deployment, so the node's local data covers many UE layouts.
+                scenario, _ = make_scenario(config, self.seed, TRAINING_DROPS + epoch, self.deployment)
+            elif epoch:
                 scenario = evolve_drop(scenario, config, rng)
             assoc = self._association(scenario, self.qos_prices, s["adapt_association"])
             assoc_mat = np.zeros((self.R, self.K))

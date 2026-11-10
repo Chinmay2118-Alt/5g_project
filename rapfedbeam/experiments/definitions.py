@@ -51,7 +51,7 @@ EXPERIMENTS = {
     },
     "tau": {
         "name": "tau",
-        "x_label": "AP-transmission time fraction τ (held fixed for every method)",
+        "x_label": "AP-transmission time fraction τ (fixed for every relay method; no relay always uses τ = 1)",
         "points": [(t, {"phase.tau_fixed": t, **SAME_PROBLEM}) for t in (0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8)],
     },
     "aging": {

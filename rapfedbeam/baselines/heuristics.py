@@ -79,4 +79,7 @@ def heuristic_solution(instance, allocation="equal", use_relay=True, precoder="m
     )
     V = build_beams_from_power_coeffs(mrt_beam_directions(channels.g_hat), relay_coeffs, power["p_max_relay"])
     U = mmse_combiners(channels.G_hat, W, scenario.noise_var_relay)
-    return BeamSolution(W, V, U, config["phase"]["tau_fixed"] if tau is None else tau, assoc)
+    if tau is None:
+        # A network without relays has no Phase II, so its APs use the whole interval.
+        tau = config["phase"]["tau_fixed"] if use_relay else 1.0
+    return BeamSolution(W, V, U, tau, assoc)

@@ -24,6 +24,7 @@ RDTYPE = torch.float64
 EPS = 1e-9            # Sir's epsilon in rho = 1/(e + eps) and in the combiner normalization
 NOT_ASSOCIATED = 1e6  # stands in for C_AR of a pair with a_rk = 0, so it never wins the min
 TINY = 1e-30          # keeps square roots of zero differentiable
+LOADING = 1e-10       # relative diagonal load that keeps a rank-deficient beam update solvable
 
 
 def sq(z):
@@ -268,7 +269,11 @@ def _regularized_step(grad, Q, W, step, damping, reg, p_max):
     safe_B = torch.where(flat[..., None, None], W.transpose(-1, -2), B)
     lam = (reg * power_multiplier(safe_Q, safe_B, p_max)).to(CDTYPE)
     lam = torch.where(flat, torch.zeros_like(lam), lam)
-    target = torch.linalg.solve(safe_Q + lam[..., None, None] * eye, safe_B).transpose(-1, -2)
+    # Q has rank at most the number of weighted streams, so with N > streams and an inactive power
+    # limit (lam ~ 0) it is singular. A load of 1e-10 of Q's scale keeps the solve defined and is
+    # far below any physical term.
+    load = (LOADING * torch.diagonal(safe_Q, dim1=-2, dim2=-1).real.mean(-1)).to(CDTYPE)
+    target = torch.linalg.solve(safe_Q + (lam + load)[..., None, None] * eye, safe_B).transpose(-1, -2)
     raw = W + step[..., None, None].to(CDTYPE) * (target - W)
     damping = damping[..., None, None].to(CDTYPE)
     return (1.0 - damping) * W + damping * raw

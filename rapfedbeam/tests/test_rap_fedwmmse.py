@@ -258,3 +258,17 @@ def test_hard_min_rates_have_no_nan_when_a_relay_hop_binds(config):
     z = coordination(net, W, V, duals, None)
     rate, _, _ = user_rates(z.C_D, z.C_AR, net.assoc)
     assert torch.isfinite(rate).all()
+
+
+def test_beam_update_survives_a_singular_curvature():
+    # Two antennas, one weighted stream and no learned regularization: Q has rank 1 and the power
+    # limit is slack, which once made the solve fail. The update must stay finite and feasible.
+    from train.unfolded_wmmse import CDTYPE, RDTYPE, _regularized_step
+    h = torch.tensor([1.0 + 0.5j, 0.0], dtype=CDTYPE)                   # exactly rank 1
+    Q = (h[:, None] * h.conj()[None, :])[None, None]                     # [1, 1, 2, 2], rank 1
+    W = torch.zeros(1, 1, 2, 2, dtype=CDTYPE)                            # [B, nodes, K, N]
+    grad = torch.zeros_like(W)
+    grad[0, 0, 0] = -1e-3 * h
+    ones = torch.ones(1, 1, dtype=RDTYPE)
+    updated = _regularized_step(grad, Q, W, ones, ones, torch.zeros(1, 1, dtype=RDTYPE), 1.0)
+    assert torch.all(torch.isfinite(updated.real)) and torch.all(torch.isfinite(updated.imag))

@@ -117,6 +117,27 @@ def test_centralized_handles_a_network_without_relayed_users(config):
     assert np.all(solution.V == 0)
 
 
+def test_no_relay_baseline_uses_the_whole_interval(config):
+    # Without relays there is no Phase II, so the APs transmit for all of it: tau = 1.
+    instance = make_instance(config, 42, 5)
+    solution = centralized_wmmse(instance, max_iters=3, use_relay=False)
+    assert solution.tau == 1.0
+    check_feasibility(instance, solution)
+    # Rates of a single-phase network scale with tau, so the same beams at tau_max lose exactly that share.
+    at_one = evaluate_solution(instance, solution)["rates"]
+    capped = evaluate_solution(instance, type(solution)(solution.W, solution.V, solution.U, config["phase"]["tau_max"], solution.relay_assoc))["rates"]
+    assert np.allclose(capped, at_one * config["phase"]["tau_max"])
+
+
+def test_tau_of_one_is_rejected_when_a_ue_is_relayed(config):
+    instance = make_instance(config, 42, 5)
+    solution = centralized_wmmse(instance, max_iters=1)
+    assert np.any(solution.relay_assoc >= 0)
+    solution.tau = 1.0
+    with pytest.raises(ValueError, match="tau"):
+        check_feasibility(instance, solution)
+
+
 def test_centralized_optimized_tau_stays_in_bounds_and_is_no_worse(config):
     instance = make_instance(config, 42, 3)
     fixed = centralized_wmmse(instance, max_iters=5, optimize_tau=False)
@@ -155,8 +176,9 @@ def test_exact_matches_closed_form_for_one_ap_one_user(small):
     small["network"].update(num_aps=1, num_ues=1, cluster_top_l=1, num_relays=1)
     small["blockage"]["frac_blocked_ues"] = 0.0
     instance = make_instance(small, 3, 0)
-    solution = solve_exact(instance, time_limit_s=60, gap_limit=1e-4)
-    snr = np.abs(instance.channels.h_hat[0, 0, 0]) ** 2 * small["power"]["p_max_ap"]
+    # The closed form is for the direct link alone; with association free, SCIP may (rightly) add the relay.
+    solution = solve_exact(instance, time_limit_s=60, gap_limit=1e-4, optimize_association=False)
+    snr =np.abs(instance.channels.h_hat[0, 0, 0]) ** 2 * small["power"]["p_max_ap"]
     expected = np.log(instance.tau * np.log2(1.0 + snr) + instance.epsilon_0)
     assert np.isclose(evaluate_solution(instance, solution)["pf_utility"], expected, atol=1e-2)
     assert solution.info["upper_bound"] >= expected - 1e-3
