@@ -10,3 +10,7 @@ venv/
 *.egg-info/
 .DS_Store
 rapfedbeam/results/
+paper/*.aux
+paper/*.log
+paper/*.out
+paper/Overleaf_Source.zip
