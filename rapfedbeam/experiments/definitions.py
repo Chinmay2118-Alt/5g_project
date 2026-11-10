@@ -66,6 +66,23 @@ EXPERIMENTS = {
         "points": [(layers, {"fedwmmse.layers": layers}) for layers in (1, 2, 4, 6, 8, 10)],
         "algorithms": ["rap_fedwmmse", "unfolded_wmmse"],
     },
+    "energy": {
+        "name": "energy",
+        "x_label": "Energy price λ_E in the objective",
+        "points": [(lam, {"objective.lambda_e": lam}) for lam in (0.0, 0.02, 0.05, 0.1, 0.2, 0.5)],
+    },
+    "fronthaul": {
+        "name": "fronthaul",
+        "x_label": "Fronthaul capacity per AP, F_max (Mbit/s)",
+        "points": [(mbps, {"fronthaul.ap_capacity_bps": mbps * 1e6}) for mbps in (100, 200, 300, 400, 600, 1000)],
+        "algorithms": ["rap_fedwmmse", "rap_fedwmmse_fedavg", "rap_fedwmmse_nofl"],
+    },
+    "cooperation": {
+        "name": "cooperation",
+        "x_label": "Number of relays R, with up to L_max = 2 relays per UE",
+        "points": [(r, {"network.num_relays": r, "network.l_max": 2}) for r in (2, 3, 4)],
+        "algorithms": ["rap_fedwmmse", "centralized_wmmse"],
+    },
     "optimality_gap": {
         "name": "optimality_gap",
         "x_label": "Small network",

@@ -5,7 +5,7 @@ Responsibility: compute the metrics used across all experiments E1-E6.
 
 import numpy as np
 
-from sim.rates import compute_full_rates
+from sim.rates import as_assoc_matrix, compute_full_rates
 
 
 def pf_utility(rates, weights=None, epsilon_0=1e-3):
@@ -35,12 +35,13 @@ def check_feasibility(instance, solution, tol=1e-4):
         raise ValueError("relay power constraint violated")
     if np.any(np.sum(np.abs(W), axis=-1)[~np.asarray(scenario.cluster_mask, dtype=bool)] > tol):
         raise ValueError("AP transmits to a UE outside its cluster (c_mk = 0 requires w_mk = 0)")
-    assoc = np.asarray(solution.relay_assoc)
-    active = np.stack([assoc == r for r in range(V.shape[0])]) if V.shape[0] else np.zeros((0, len(assoc)), dtype=bool)
+    active = as_assoc_matrix(solution.relay_assoc, V.shape[0]).astype(bool)
     if np.any(np.sum(np.abs(V), axis=-1)[~active] > tol):
         raise ValueError("relay transmits to a UE it is not associated with (a_rk = 0 requires v_rk = 0)")
     if np.any(active.sum(axis=1) > network.get("max_streams_per_relay", V.shape[1])):
         raise ValueError("relay capacity C_r^max violated")
+    if np.any(active.sum(axis=0) > network.get("l_max", 1)):
+        raise ValueError("cooperation order L_max violated")
     phase = instance.config["phase"]
     if not active.any():
         # No relayed UE means no Phase II: a single-phase network may use the whole interval (tau = 1).
@@ -62,7 +63,8 @@ def transmit_power(instance, solution):
 def total_power(instance, solution):
     # P_tot = P_tx + P_circ, a relay is active (b_r = 1) when it serves at least one UE
     power = instance.config["power"]
-    active_relays = len(set(int(r) for r in np.asarray(solution.relay_assoc) if r >= 0))
+    num_relays = instance.config["network"]["num_relays"]
+    active_relays = int(as_assoc_matrix(solution.relay_assoc, num_relays).any(axis=1).sum())
     return transmit_power(instance, solution) + instance.config["network"]["num_aps"] * power["circuit_power_ap"] + active_relays * power["circuit_power_relay"]
 
 
@@ -70,7 +72,7 @@ def evaluate_solution(instance, solution):
     """The single scoring path: feasibility, then rates on the TRUE channels, whatever the algorithm saw."""
     check_feasibility(instance, solution)
     scenario = instance.scenario
-    if not np.array_equal(solution.relay_assoc, scenario.relay_assoc):
+    if np.shape(solution.relay_assoc) != np.shape(scenario.relay_assoc) or not np.array_equal(solution.relay_assoc, scenario.relay_assoc):
         scenario = scenario.copy()
         scenario.relay_assoc = np.asarray(solution.relay_assoc)
     rates, debug = compute_full_rates(scenario, instance.channels, solution.W, solution.V, solution.U, solution.tau)

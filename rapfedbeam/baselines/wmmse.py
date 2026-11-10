@@ -14,7 +14,7 @@ import numpy as np
 
 from eval.metrics import pf_utility
 from sim.problem import BeamSolution
-from sim.rates import (ap_target_channels, build_beams_from_power_coeffs, compute_full_rates, mmse_combiners, mrt_beam_directions)
+from sim.rates import (as_assoc_matrix, ap_target_channels, build_beams_from_power_coeffs, compute_full_rates, mmse_combiners, mrt_beam_directions)
 from baselines.heuristics import equal_power, relay_power_equal_or_fractional
 
 LN2 = np.log(2.0)
@@ -22,7 +22,7 @@ LN2 = np.log(2.0)
 
 def _objective(instance, W, V, U, tau, assoc):
     scenario = instance.scenario
-    if not np.array_equal(assoc, scenario.relay_assoc):
+    if np.shape(assoc) != np.shape(scenario.relay_assoc) or not np.array_equal(assoc, scenario.relay_assoc):
         scenario = scenario.copy()
         scenario.relay_assoc = assoc
     # Algorithms may only see the estimates, so the true channels are swapped out here.
@@ -58,8 +58,10 @@ class _Layout:
         self.num_ues = network["num_ues"]
         self.ap_vars = [(m, k, a) for m in range(network["num_aps"]) for k in range(self.num_ues)
                         for a in range(network["n_antennas_ap"]) if scenario.cluster_mask[m, k]]
-        self.relay_vars = [(int(assoc[k]), k, n) for k in range(self.num_ues) if assoc[k] >= 0
+        matrix = as_assoc_matrix(assoc, network["num_relays"])
+        self.relay_vars = [(r, k, n) for k in range(self.num_ues) for r in np.flatnonzero(matrix[:, k])
                            for n in range(network["n_antennas_relay"])]
+        self.relays_of = [np.flatnonzero(matrix[:, k]) for k in range(self.num_ues)]
         self.size = len(self.ap_vars) + len(self.relay_vars)
         self.stream = np.array([var[1] for var in self.ap_vars + self.relay_vars], dtype=int)
         self.is_ap = np.array([True] * len(self.ap_vars) + [False] * len(self.relay_vars))
@@ -141,15 +143,17 @@ def _solve_beam_update(instance, layout, z, tau, assoc):
         const, f, Q = _link_bound(row1, k, alpha, noise_term, xi, layout)
         const, f, Q = tau * const, tau * f, np.sqrt(tau) * Q
 
-        relay_id = int(assoc[k])
-        if relay_id >= 0:
+        if len(layout.relays_of[k]):
+            # Phase II: every assisting relay's beam adds coherently at UE k.
             row2 = np.array([0.0] * len(layout.ap_vars) + [np.conj(channels.g_hat[rel, k, n]) for rel, _, n in layout.relay_vars], dtype=complex)
             alpha2, noise_term2, xi2 = _ue_receiver(row2, z, k, scenario.noise_var_ue, layout)
             const2, f2, Q2 = _link_bound(row2, k, alpha2, noise_term2, xi2, layout)
             const, f = const + (1.0 - tau) * const2, f + (1.0 - tau) * f2
             Q = np.vstack([Q, np.sqrt(1.0 - tau) * Q2])
 
-            # Relay decoding: a full MMSE combiner c replaces the scalar receiver (alpha = 1).
+        for relay_id in layout.relays_of[k]:
+            # Relay decoding, one constraint per assisting relay (each must decode the stream):
+            # a full MMSE combiner c replaces the scalar receiver (alpha = 1).
             covariance = effective[relay_id] @ effective[relay_id].conj().T + scenario.noise_var_relay * np.eye(network["n_antennas_relay"])
             c = np.linalg.solve(covariance, effective[relay_id][:, k])
             mse_ar = 1.0 - float(np.real(np.conj(effective[relay_id][:, k]) @ c))
@@ -196,13 +200,14 @@ def _best_tau(instance, debug_rates, tau):
     """PF utility is concave in tau for fixed beams, so a refined grid search is enough."""
     phase = instance.config["phase"]
     gamma1, gamma2, gamma_ar, assoc = debug_rates
+    assoc = as_assoc_matrix(assoc, gamma_ar.shape[0])
     grid = np.linspace(phase.get("tau_min", 0.1), phase.get("tau_max", 0.9), 121)
     candidates = np.append(grid, tau)
     best_tau, best_value = tau, -np.inf
     for candidate in candidates:
         rates = candidate * np.log2(1.0 + gamma1) + (1.0 - candidate) * np.log2(1.0 + gamma2)
-        for k, relay_id in enumerate(assoc):
-            if relay_id >= 0:
+        for k in range(len(rates)):
+            for relay_id in np.flatnonzero(assoc[:, k]):
                 rates[k] = min(rates[k], candidate * np.log2(1.0 + gamma_ar[relay_id, k]))
         value = float(pf_utility(rates, instance.ue_weights, instance.epsilon_0))
         if value > best_value:
@@ -350,8 +355,9 @@ def local_wmmse(instance, use_relay=True):
         W[m, served] = wmmse_node(targets[m, served], scenario.noise_var_ue, power["p_max_ap"], np.full(len(served), tau),
                                   instance.ue_weights[served], instance.epsilon_0, iters, lambda_e / power["pa_efficiency_ap"])
 
+    matrix = as_assoc_matrix(assoc, network["num_relays"])
     for r in range(network["num_relays"]):
-        served = np.flatnonzero(assoc == r)
+        served = np.flatnonzero(matrix[r])
         if len(served):
             V[r, served] = wmmse_node(channels.g_hat[r, served], scenario.noise_var_ue, power["p_max_relay"], np.full(len(served), 1.0 - tau),
                                       instance.ue_weights[served], instance.epsilon_0, iters, lambda_e / power["pa_efficiency_relay"])

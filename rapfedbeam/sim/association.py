@@ -73,11 +73,14 @@ def solve_matching(scores, l_max, capacity, min_score=0.0):
     return np.rint(result.x).reshape(num_relays, num_ues).astype(int)
 
 
-def matrix_to_assoc(assoc_matrix):
-    """a [R, K] with at most one relay per UE -> relay index per UE, -1 for none."""
+def matrix_to_assoc(assoc_matrix, l_max=1):
+    """The form the simulator stores: a relay index per UE (-1 for none) when L_max = 1, and the
+    binary matrix a [R, K] itself when L_max > 1 (cooperative multi-relay forwarding)."""
     assoc_matrix = np.asarray(assoc_matrix)
+    if l_max > 1:
+        return assoc_matrix.astype(int)
     if np.any(assoc_matrix.sum(axis=0) > 1):
-        raise NotImplementedError("the simulator stores one relay per UE, so L_max must be 1")
+        raise ValueError("a UE has more than one relay although L_max = 1")
     assoc = np.full(assoc_matrix.shape[1], -1, dtype=int)
     relay_ids, ue_ids = np.nonzero(assoc_matrix)
     assoc[ue_ids] = relay_ids
@@ -98,4 +101,5 @@ def matched_association(scenario, config, qos_prices=None):
         eligible &= beta_ar > 0.0
     scores = np.where(eligible, scores, -np.inf)
     capacity = network.get("max_streams_per_relay", scores.shape[1])
-    return matrix_to_assoc(solve_matching(scores, network.get("l_max", 1), capacity, config["association"].get("min_score", 0.0)))
+    l_max = network.get("l_max", 1)
+    return matrix_to_assoc(solve_matching(scores, l_max, capacity, config["association"].get("min_score", 0.0)), l_max)

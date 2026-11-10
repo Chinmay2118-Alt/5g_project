@@ -8,7 +8,7 @@ import copy
 import numpy as np
 
 from sim.problem import BeamSolution
-from sim.rates import ap_target_channels, build_beams_from_power_coeffs, mmse_combiners, mrt_beam_directions, rzf_beam_directions
+from sim.rates import as_assoc_matrix, ap_target_channels, build_beams_from_power_coeffs, mmse_combiners, mrt_beam_directions, rzf_beam_directions
 
 
 def equal_power(cluster_mask, p_max_ap):
@@ -35,10 +35,11 @@ def fractional_power(beta_mk, cluster_mask, p_max_ap, alpha=0.5):
 def relay_power_equal_or_fractional(relay_assoc, p_max_relay, num_relays=None, beta_rk=None, fractional=False, alpha=0.5):
     assoc = np.asarray(relay_assoc)
     if num_relays is None:
-        num_relays = int(assoc.max()) + 1 if np.any(assoc >= 0) else 0
-    result = np.zeros((num_relays, len(assoc)), dtype=float)
+        num_relays = assoc.shape[0] if assoc.ndim == 2 else (int(assoc.max()) + 1 if np.any(assoc >= 0) else 0)
+    matrix = as_assoc_matrix(assoc, num_relays)
+    result = np.zeros(matrix.shape, dtype=float)
     for relay_id in range(num_relays):
-        users = np.flatnonzero(assoc == relay_id)
+        users = np.flatnonzero(matrix[relay_id])
         if not len(users):
             continue
         weights = np.ones(len(users))
@@ -54,7 +55,7 @@ def no_relay_scenario(scenario):
     # returns a copy of `scenario` with relay_assoc all set to -1
     # (used to run compute_full_rates with only Phase-I / direct-link contribution -> Claim 1 baseline)
     result = copy.deepcopy(scenario)
-    result.relay_assoc = np.full_like(np.asarray(scenario.relay_assoc), -1)
+    result.relay_assoc = np.full(len(scenario.ue_positions), -1, dtype=int)
     return result
 
 

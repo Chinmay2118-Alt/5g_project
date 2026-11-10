@@ -128,6 +128,11 @@ training:                # the earlier neural CTDE baseline only (neural_ctde, r
   power_penalty_weight: 0.01
   soft_min_temperature: 5.0   # for log-sum-exp soft-min DF rate during training
 
+fronthaul:                  # paper Sec. XXXI: D_data_m + D_FL_m <= F_max_m T_e (APs), D_FL_r <= F_ctrl_r T_e (relays)
+  ap_capacity_bps: 1.0e+9    # F_max_m, a 1 Gbit/s fronthaul per AP
+  relay_control_bps: 1.0e+7  # F_ctrl_r, a 10 Mbit/s control link per relay
+  epoch_duration_s: 1.0      # T_e in seconds: slow-timescale epochs last about a second
+
 models:
   adapter_dim: 32
   hidden_dim: 64

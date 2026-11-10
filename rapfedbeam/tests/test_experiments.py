@@ -132,8 +132,14 @@ def test_every_figure_draws_and_writes_its_numbers(config, tmp_path):
     layers = dict(EXPERIMENTS["layers"], points=[(1, {"fedwmmse.layers": 1}), (2, {"fedwmmse.layers": 2})])
     run_experiment(layers, quick, ["unfolded_wmmse", "rap_fedwmmse"], 1, 1, 1, tmp_path, deployments=1)
     run_experiment(dict(EXPERIMENTS["optimality_gap"]), quick, ["exact_minlp", "mrt_equal"], 1, 1, 1, tmp_path)
-    drawn, _ = draw_all(tmp_path, tmp_path / "figures")
-    for stem in ("G01_rate_cdf", "G02_outage", "G08_pf_vs_tau", "G10_pf_vs_layers", "G11_optimality_gap", "G13_fl_epochs", "G14_fl_bytes"):
+    two_points = lambda name: dict(EXPERIMENTS[name], points=EXPERIMENTS[name]["points"][:2])
+    for name in ("power", "num_ues", "blocked_fraction", "num_relays", "aging", "energy"):
+        run_experiment(two_points(name), quick, ["mrt_equal", "local_wmmse"], 2, 1, 1, tmp_path)
+    run_experiment(two_points("cooperation"), quick, ["mrt_equal"], 1, 1, 1, tmp_path)
+    run_experiment(two_points("fronthaul"), quick, ["rap_fedwmmse", "rap_fedwmmse_nofl"], 1, 1, 1, tmp_path, deployments=1)
+    drawn, skipped = draw_all(tmp_path, tmp_path / "figures")
+    assert not skipped and len(drawn) == 14
+    for stem in drawn:
         assert (tmp_path / "figures" / f"{stem}.png").exists(), stem
         assert (tmp_path / "figures" / f"{stem}.csv").exists(), stem
 

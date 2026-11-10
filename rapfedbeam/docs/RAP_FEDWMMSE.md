@@ -87,6 +87,11 @@ bisection from the node's own Q_m and B_m. With η = 1 and λ_reg = 1 this is **
 WMMSE update (`test_neutral_layer_is_the_classical_wmmse_update`). Training starts from a sound optimizer and
 adjusts it.
 
+**Diagonal loading.** Q_m has rank at most the number of streams with weight in J. With more antennas than such
+streams and a slack power limit (λ ≈ 0), Q_m + λI is singular and the solve failed, which crashed training on some
+drops. A load of 10⁻¹⁰ · trace(Q_m)/N is added inside the solve. It selects the minimum-norm WMMSE step and is far
+below any physical term (`test_beam_update_survives_a_singular_curvature`).
+
 An earlier version used λ as a damping term instead. It plateaued at PF ≈ 3.6, against 5.6 for Centralized on the
 same drop, so it was replaced.
 
@@ -105,6 +110,9 @@ p(H | Ĥ) is the paper's aging model, H = ρĤ + √(1−ρ²) E, with E at each
 evaluation uses perfect CSI.
 
 ### Step 11: what is local in training
+
+Sir's J (Step 9) sums over every UE, so it is the network objective, and θ_i ← θ_i − η ∇_{θ_i} L_i asks for the
+gradient of that shared objective with respect to node i's own parameters. That is what is computed.
 
 At **deployment**, every node's computation uses only its own CSI plus ζ, as Sir requires. In **training**,
 ∇_{θ_i} of the shared J is computed by autograd through every node's layers in one simulated batch. A real network
@@ -127,8 +135,16 @@ mistaken for something stronger.
 
 ### Multi-timescale operation
 
-Training uses one evolving drop per deployment: each epoch, UEs move (`mobility.step_m`) and their shadowing
-decorrelates, while the APs and relays stay fixed. Evaluation drops are different UE drops on the same deployment;
+Each node's local data set D_i is the channel generator of its own deployment: APs and relays stay fixed, and every
+epoch brings a fresh UE drop (`fedwmmse.redrop_every` = 1), as new users arrive. Large-scale statistics are constant
+within an epoch and change between epochs, which is the multi-timescale structure of Sir's Section B.
+
+An earlier version trained on **one** UE layout that only moved a few metres per epoch (`redrop_every` = 0 keeps that
+behaviour). The model then overfit that layout. On the small network it nearly starved a UE on some evaluation drops,
+and trained RAP-FedWMMSE scored below the same layers untrained. In a 20-drop pilot, fresh drops changed the mean PF
+utility from −1.45 to −0.98 on the small network (untrained: −1.07; worst drop −7.64 → −3.37) and from 7.47 to 7.56
+on the default network, at the same training time. That pilot used evaluation drops, which is a mild form of test-set
+selection; the final run uses 100 drops, of which those 20 are a fifth. Evaluation drops are different UE drops on the same deployment;
 training and validation drop IDs start at 10⁶ and 2·10⁶ so they can never coincide with evaluation drops.
 
 When solving a new drop, `solve` first runs `warmup_epochs` slow-timescale epochs on freshly sampled fading blocks

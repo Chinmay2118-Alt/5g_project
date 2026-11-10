@@ -16,6 +16,7 @@ import tempfile
 import numpy as np
 
 from sim.problem import BeamSolution
+from sim.rates import as_assoc_matrix
 
 LN2 = np.log(2.0)
 MAX_REAL_BEAM_VARIABLES = 40
@@ -97,7 +98,8 @@ def _solve_in_this_process(instance, time_limit_s, gap_limit, optimize_associati
 
     M, R, K = network["num_aps"], network["num_relays"], network["num_ues"]
     N_A, N_R = network["n_antennas_ap"], network["n_antennas_relay"]
-    num_real = 2 * (int(scenario.cluster_mask.sum()) * N_A + (R * K if optimize_association else int(np.sum(scenario.relay_assoc >= 0))) * N_R)
+    fixed_assoc = as_assoc_matrix(scenario.relay_assoc, R)
+    num_real = 2 * (int(scenario.cluster_mask.sum()) * N_A + (R * K if optimize_association else int(fixed_assoc.sum())) * N_R)
     if num_real > MAX_REAL_BEAM_VARIABLES:
         raise ValueError(f"{num_real} real beam variables is too large for spatial branch-and-bound (limit {MAX_REAL_BEAM_VARIABLES})")
 
@@ -119,7 +121,7 @@ def _solve_in_this_process(instance, time_limit_s, gap_limit, optimize_associati
         relay_pairs = [(r, k) for r in range(R) for k in range(K)]
     else:
         assoc_var = None
-        relay_pairs = [(int(scenario.relay_assoc[k]), k) for k in range(K) if scenario.relay_assoc[k] >= 0]
+        relay_pairs = [(int(r), int(k)) for r, k in zip(*np.nonzero(fixed_assoc))]
 
     # --- beams ---
     # Each stream's common phase changes no |gain|, so fixing it removes a symmetry of the search.
@@ -236,17 +238,23 @@ def _solve_in_this_process(instance, time_limit_s, gap_limit, optimize_associati
     for key, pair in w.items():
         W[key] = complex_value(pair)
     if optimize_association:
-        assoc = np.full(K, -1, dtype=int)
+        chosen = np.zeros((R, K), dtype=int)
         for (r, k), var in assoc_var.items():
-            if model.getSolVal(solution, var) > 0.5:
+            chosen[r, k] = int(model.getSolVal(solution, var) > 0.5)
+        if network.get("l_max", 1) > 1:
+            assoc = chosen
+        else:
+            assoc = np.full(K, -1, dtype=int)
+            for r, k in zip(*np.nonzero(chosen)):
                 assoc[k] = r
     else:
+        chosen = fixed_assoc
         assoc = np.asarray(scenario.relay_assoc).copy()
     for (r, k, n), pair in v.items():
-        if assoc[k] == r:
+        if chosen[r, k]:
             V[r, k, n] = complex_value(pair)
     for r, k in relay_pairs:
-        if assoc[k] != r:
+        if not chosen[r, k]:
             continue
         if N_R == 1:
             U[r, k, 0] = 1.0

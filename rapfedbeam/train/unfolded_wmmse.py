@@ -16,7 +16,7 @@ import numpy as np
 import torch
 
 from sim.channels import channel_amplitude, noise_power_w
-from sim.rates import ap_target_channels, mrt_beam_directions
+from sim.rates import as_assoc_matrix, ap_target_channels, mrt_beam_directions
 
 LN2 = math.log(2.0)
 CDTYPE = torch.complex128
@@ -66,11 +66,8 @@ class Network:
 
 
 def assoc_matrix(assoc, num_relays):
-    matrix = np.zeros((num_relays, len(assoc)))
-    for k, relay_id in enumerate(assoc):
-        if relay_id >= 0:
-            matrix[relay_id, k] = 1.0
-    return matrix
+    """a_rk as floats [R, K], from a relay index per UE or the binary matrix (L_max > 1)."""
+    return as_assoc_matrix(assoc, num_relays).astype(float)
 
 
 def network_from(scenario, channel_sets, config, assoc, tau, true_channels=False):
