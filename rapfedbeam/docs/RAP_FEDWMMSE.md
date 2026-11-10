@@ -12,9 +12,9 @@ and [`train/unfolded_wmmse.py`](../train/unfolded_wmmse.py) (unfolded layers). T
 
 | Sir's step | Where | What it does |
 |---|---|---|
-| 1. Relay association | `sim/association.py` | Scores Γ_rk = α₁β̄ᴿᵁ + α₂β̄ᴬᴿ − α₃Ī + α₄λᵠ, then solves the capacitated matching exactly as a binary program (SciPy `milp`) |
+| 1. Relay association | `sim/association.py` | Scores Γ_rk = α₁β̄ᴿᵁ + α₂β̄ᴬᴿ − α₃Ī + α₄λᵠ, then solves the capacitated matching exactly as a binary program (SciPy `milp`), with Σ_r a_rk ≤ L_max and Σ_k a_rk ≤ C_r^max. L_max > 1 (cooperative multi-relay forwarding) is supported throughout |
 | 2. Phase duration | `RapFedWMMSETrainer._best_tau` | 1-D search over [τ_min, τ_max] on the epoch utility |
-| 3. Local state, adapters, backbone | `ap_features`, `relay_features`, `NodeModel` | Each node's own channel magnitudes, β, cluster or association row and QoS prices → role adapter → personalized backbone θ_i |
+| 3. Local state, adapters, backbone | `ap_features`, `relay_features`, `SlowCoordination`, `NodeModel` | x_m = {ĥ_mk, Ĝ_mr, β_m, ζ}, x_r = {Ĝ_mr, ĝ_rk, β_r, ζ}, where ζ holds the QoS prices, DF prices, measured aggregate interference and previous rate statistics → role adapter → personalized backbone θ_i |
 | 4. Model-driven initialization | `NodeModel.forward`, `initial_beams` | The head predicts η⁽ˡ⁾, δ⁽ˡ⁾, λ_reg and initial power shares; W⁽⁰⁾, V⁽⁰⁾ are MRT directions with those shares |
 | 5. Unfolded layers: combiners, SINRs, DF rate | `relay_combiners`, `link_rates`, `user_rates` | Exactly the paper's formulas; soft-min with κ inside the layers |
 | 6. WMMSE variables | `mmse_equalizer`, `coordination` | c_k, ε_k, ρ_k = 1/(ε_k + ϵ) for Phase I, Phase II and relay decoding |
@@ -24,7 +24,7 @@ and [`train/unfolded_wmmse.py`](../train/unfolded_wmmse.py) (unfolded layers). T
 | 10. Robust CSI loss | `outage_surrogate` | S draws of H ~ p(H \| Ĥ) from the aging model; sigmoid outage; λ_O Σ[p̂ − ϵ]⁺ |
 | 11. Local self-supervised training | `RapFedWMMSETrainer._local_step` | No labels; Adam on each node's own parameters |
 | 12. Event trigger | `fl/communication.py: urgency` | Γᶠᴸ = β₁d^θ + β₂d^H + β₃A/A_max + β₄‖∇‖/G_max; eligible when ≥ δ_FL |
-| 13. Budgeted selection | `select_clients` | Binary knapsack, solved exactly |
+| 13. Budgeted selection | `select_clients`, `_fl_headroom` | Binary knapsack, solved exactly, under B_FL and each node's fronthaul or control-link headroom (paper Sec. XXXI) |
 | 14. Top-k compression | `top_k` | Top-k of Δθ + e with error feedback |
 | 15. Personalized aggregation | `personalized_updates`, `_federate` | α_ij = S_ij p_j / (Σ S_il p_l + ϵ); θ_i ← θ_i + ρ_p Δθ̄_i |
 | U. Deployment | `RapFedWMMSETrainer.solve` | Local CSI → adapter → backbone → L layers → projection |
@@ -47,6 +47,30 @@ so all methods share one association rule. RAP-FedWMMSE also feeds its QoS price
 Sir allows "projected gradient or one-dimensional search". The search uses the SINRs measured in the epoch's
 last training batch, with beams held fixed. Under that approximation the utility is concave in τ, so a
 61-point grid finds the maximum. τ is a slow-timescale variable: it is set once per epoch, not per block.
+
+### Step 3: what ζ(t) carries
+
+Sir lists ζ(t) as "QoS dual prices, measured aggregate interference, DF constraint prices, and previous rate
+statistics". `SlowCoordination` holds exactly these, set once per slow-timescale epoch:
+- λᵠ_k and ν_rk, after the epoch's dual ascent;
+- log₁₀(1 + I_k/σ²) for Phase I and Phase II, the aggregate interference UE k measured;
+- the mean rate of each UE over the epoch.
+
+That is 4K + RK numbers, the same for every node, with no antenna-domain CSI. Every node's network input is its own
+CSI magnitudes, large-scale gains and cluster or association row, plus this vector
+(`test_zeta_carries_every_quantity_sir_lists`). At deployment, the warm-up epochs on a new drop produce it.
+
+### Step 1: cooperation order L_max
+
+The association can be stored as a relay index per UE (L_max = 1) or as the binary matrix a_rk (L_max > 1), and
+every part of the code accepts both (`sim.rates.as_assoc_matrix`). With L_max > 1:
+- the DF rate is r_k = min{C_D_k, min over r with a_rk = 1 of C_AR_rk}: every assisting relay must decode;
+- Phase II gains of all assisting relays add coherently at the UE;
+- an AP steers a cooperatively relayed stream along the sum of the unit directions towards its relays;
+- Centralized WMMSE has one decoding constraint per assisting relay, and the exact MINLP optimizes a_rk under
+  Σ_r a_rk ≤ L_max.
+
+The default is L_max = 1, the paper's "simplest implementation". G06 adds L_max = 2.
 
 ### Step 4: what the head predicts
 
@@ -132,6 +156,21 @@ mistaken for something stronger.
   nodes and divided by √K so it does not dominate the distance. Ĩ_i is measured interference, and L̃_i the load.
 - **FedAvg comparison.** Dense uploads, an equal-weight average, everyone receives it, and ρ_p = 1.
 - **No-FL comparison.** Local training only.
+
+### Step 13: the fronthaul constraint
+
+The paper (Sec. XXXI) requires D_data_m + D_FL_m ≤ F_max_m T_e for each AP and D_FL_r ≤ F_ctrl_r T_e for each relay,
+all in bits. `_fl_headroom` computes each node's headroom at the end of an epoch:
+- **APs.** D_data_m = B T_e Σ_k c_mk r̄_k, from the epoch's rates, which ζ carries.
+- **Relays.** They receive user data over the air, so their control link carries FL traffic only.
+
+A node joins Step 13's knapsack only if its headroom covers its compressed upload plus the dense download. Because
+q_i is binary, this is exactly the per-node constraint q_i (S_up + S_down) ≤ headroom_i. A node that was not
+selected receives Step 15's aggregated update only if its headroom covers the download. FedAvg obeys the same rule
+for its dense exchange.
+
+The user data itself is not throttled. An AP whose data alone exceeds F_max is counted as overloaded (G14 (b)) and
+sends no FL traffic. Defaults: F_max = 1 Gbit/s per AP, F_ctrl = 10 Mbit/s per relay, T_e = 1 s. G14 sweeps F_max.
 
 ### Multi-timescale operation
 

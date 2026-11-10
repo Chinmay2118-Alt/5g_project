@@ -17,7 +17,7 @@ phase:
   tau_max: 0.8
 
 blockage:
-  frac_blocked_ues: 0.3     # 30% of UEs behind blockage
+  frac_blocked_ues: 0.3     # round(0.3 K) UEs behind blockage: 2 of 8 at the default K
   extra_loss_db: 25         # 20-30 dB extra path loss
 
 simulation:

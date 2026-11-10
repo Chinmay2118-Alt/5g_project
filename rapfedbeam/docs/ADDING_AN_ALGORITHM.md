@@ -19,7 +19,7 @@ it. RAP-FedWMMSE in [`train/rap_fedwmmse.py`](../train/rap_fedwmmse.py) is a com
        def fit(self, config, seed, deployment):
            # Train on one deployment, using training drops such as
            # sim.problem.make_scenario(config, seed, TRAINING_DROPS, deployment).
-           # Optionally return per-epoch records for graphs G13 and G14:
+           # Optionally return per-epoch records for the learning-curve figure G12:
            return [{"round": e, "pf_utility": u, "cumulative_bytes": b}, ...]
 
        def solve(self, instance):

@@ -76,9 +76,13 @@ def _axes_pair(suptitle, panels):
 def _save(fig, ax, out_dir, stem, header, rows):
     handles, labels = ax.get_legend_handles_labels()
     if len(handles) >= 2:
-        # Below the plot, so it can never cover a line or a band.
-        fig.legend(handles, labels, frameon=False, fontsize=8, labelcolor=INK_SECONDARY, loc="lower center", ncol=3)
-        fig.tight_layout(rect=(0, 0.06 + 0.035 * ((len(handles) - 1) // 3), 1, 1))
+        # Below the plot, so it can never cover a line or a band. Long labels get fewer columns so
+        # nothing is cut off at the figure edge.
+        width = fig.get_size_inches()[0]
+        columns = 3 if max(len(label) for label in labels) * 0.075 * 3 < width else 2
+        legend_rows = (len(handles) + columns - 1) // columns
+        fig.legend(handles, labels, frameon=False, fontsize=8, labelcolor=INK_SECONDARY, loc="lower center", ncol=columns)
+        fig.tight_layout(rect=(0, 0.025 + 0.042 * legend_rows, 1, 1))
     else:
         fig.tight_layout()
     fig.savefig(Path(out_dir) / f"{stem}.png", facecolor=SURFACE)
@@ -136,16 +140,22 @@ def _sweep_stat(point, name, statistic):
     return float(values.mean()), float(_ci(values))
 
 
-def _draw_sweep(ax, payload, statistic, rows, names=None, line_style=None, suffix=""):
+def _draw_sweep(ax, payload, statistic, rows, names=None, line_style=None, suffix="", error_bars=False):
+    """One line per algorithm with its 95% interval: a band, or (error_bars) offset error bars for
+    algorithms that share a color, whose bands would merge."""
     x_values = [point["x"] for point in payload["points"]]
-    for name in names or payload["algorithms"]:
+    for index, name in enumerate(names or payload["algorithms"]):
         stats = [_sweep_stat(point, name, statistic) for point in payload["points"]]
         means = np.array([value for value, _ in stats])
         if np.all(np.isnan(means)):
             continue
         half = np.array([width for _, width in stats])
         color, marker, line = STYLE[name]
-        ax.fill_between(x_values, means - half, means + half, color=color, alpha=0.12, linewidth=0)
+        if error_bars:
+            offset = np.asarray(x_values, dtype=float) * (1.0 + 0.035 * (index - 1))
+            ax.errorbar(offset, means, yerr=half, fmt="none", ecolor=color, elinewidth=1.0, capsize=3, alpha=0.7)
+        else:
+            ax.fill_between(x_values, means - half, means + half, color=color, alpha=0.12, linewidth=0)
         ax.plot(x_values, means, color=color, marker=marker, markersize=6, linewidth=1.5, linestyle=line_style or line,
                 markeredgecolor=SURFACE, markeredgewidth=1.0, label=_label(name) + suffix)
         rows.extend([x, name + suffix, mean, width] for x, mean, width in zip(x_values, means, half))
@@ -262,7 +272,7 @@ def figure_optimality_gap(results_dir, out_dir):
             names.append(name)
             means.append(float(np.mean(gaps)))
             half_widths.append(float(_ci(gaps)))
-    fig, ax = _axes(f"G10  Distance from the certified MINLP upper bound, small network ({payload['drops']} drops)",
+    fig, ax = _axes(f"G10  Gap to the certified MINLP bound, small network ({payload['drops']} drops)",
                     "PF utility below SCIP's upper bound", "")
     positions = np.arange(len(names))[::-1]
     ax.barh(positions, means, height=0.55, color=[STYLE[name][0] for name in names], xerr=half_widths, error_kw={"ecolor": INK_SECONDARY, "linewidth": 1.0})
@@ -323,8 +333,12 @@ def figure_energy(results_dir, out_dir):
                 markeredgecolor=SURFACE, markeredgewidth=1.0, label=_label(name))
         rows.extend([lam, name, power, power_ci, utility, utility_ci] for lam, (power, power_ci), (utility, utility_ci) in stats)
         if name == "rap_fedwmmse":
-            for lam, power, utility in zip([x for x, _, _ in stats], powers, utilities):
-                ax.annotate(f"λ_E={lam:g}", (power, utility), xytext=(4, -10), textcoords="offset points", fontsize=7, color=color)
+            # Label the points far enough apart to stay legible; the CSV has every value.
+            last = None
+            for lam, power, utility in sorted(zip([x for x, _, _ in stats], powers, utilities), key=lambda item: item[1]):
+                if last is None or power - last > 1.6:
+                    ax.annotate(f"λ_E={lam:g}", (power, utility), xytext=(-4, -12), textcoords="offset points", fontsize=7, color=color)
+                    last = power
     _save(fig, ax, out_dir, "G13_energy_tradeoff", ["lambda_e", "algorithm", "total_power_w", "power_ci95", "pf_utility", "pf_ci95"], rows)
     return True
 
@@ -338,7 +352,7 @@ def figure_fronthaul(results_dir, out_dir):
                            [("(a) PF utility on the evaluation drops", payload["x_label"], "PF utility"),
                             ("(b) FL participation per epoch", payload["x_label"], "Nodes per epoch")])
     rows = []
-    x_values = _draw_sweep(axes[0], payload, "pf_utility", rows)
+    x_values = _draw_sweep(axes[0], payload, "pf_utility", rows, error_bars=True)
     axes[0].set_xscale("log")
     axes[0].set_xticks(x_values, [str(x) for x in x_values])
     for name in payload["algorithms"]:

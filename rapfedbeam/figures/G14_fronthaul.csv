@@ -1,0 +1,43 @@
+x,series,value,ci95_half_width
+100,rap_fedwmmse,7.776400331906783,0.4852463470074041
+200,rap_fedwmmse,7.93170800952104,0.4494037441929454
+300,rap_fedwmmse,7.903049673272988,0.4748236013547128
+400,rap_fedwmmse,7.800027881213968,0.4993128667022759
+600,rap_fedwmmse,8.073379826570855,0.4545956621884029
+1000,rap_fedwmmse,7.8798415142791915,0.5087484255690952
+100,rap_fedwmmse_fedavg,7.794270478877346,0.4837943023949706
+200,rap_fedwmmse_fedavg,7.756100948006348,0.44462278674903366
+300,rap_fedwmmse_fedavg,7.857153964776505,0.4580819269321255
+400,rap_fedwmmse_fedavg,7.893212626431017,0.48412082603015305
+600,rap_fedwmmse_fedavg,7.977265940073387,0.46322657271961754
+1000,rap_fedwmmse_fedavg,8.014212202631814,0.46931970043862387
+100,rap_fedwmmse_nofl,7.942347935164218,0.44932575870959324
+200,rap_fedwmmse_nofl,7.942347935164218,0.44932575870959324
+300,rap_fedwmmse_nofl,7.942347935164218,0.44932575870959324
+400,rap_fedwmmse_nofl,7.942347935164218,0.44932575870959324
+600,rap_fedwmmse_nofl,7.942347935164218,0.44932575870959324
+1000,rap_fedwmmse_nofl,7.942347935164218,0.44932575870959324
+100,rap_fedwmmse (participants),2.75,
+200,rap_fedwmmse (participants),4.206666666666667,
+300,rap_fedwmmse (participants),4.833333333333333,
+400,rap_fedwmmse (participants),4.913333333333333,
+600,rap_fedwmmse (participants),4.916666666666667,
+1000,rap_fedwmmse (participants),4.916666666666667,
+100,overloaded_aps,7.123333333333333,
+200,overloaded_aps,5.220000000000001,
+300,overloaded_aps,3.1566666666666667,
+400,overloaded_aps,1.4533333333333336,
+600,overloaded_aps,0.12666666666666665,
+1000,overloaded_aps,0.0,
+100,rap_fedwmmse_fedavg (participants),2.8633333333333337,
+200,rap_fedwmmse_fedavg (participants),4.76,
+300,rap_fedwmmse_fedavg (participants),6.833333333333333,
+400,rap_fedwmmse_fedavg (participants),8.51,
+600,rap_fedwmmse_fedavg (participants),9.873333333333335,
+1000,rap_fedwmmse_fedavg (participants),10.0,
+100,rap_fedwmmse_nofl (participants),0.0,
+200,rap_fedwmmse_nofl (participants),0.0,
+300,rap_fedwmmse_nofl (participants),0.0,
+400,rap_fedwmmse_nofl (participants),0.0,
+600,rap_fedwmmse_nofl (participants),0.0,
+1000,rap_fedwmmse_nofl (participants),0.0,

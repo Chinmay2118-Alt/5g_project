@@ -26,11 +26,16 @@ NaN.
   - A pair is eligible only if its relay-to-UE hop beats the direct link (relaxed by the QoS price). Without this
     filter, strong AP-to-relay hops made weak relay hops look attractive, and Centralized lost 0.6–1.3 PF on average.
 - **τ:** RAP-FedWMMSE adapts it per epoch, and Centralized WMMSE per block. Local-WMMSE and the heuristics keep
-  0.5, the fixed split Sir's text names as the conventional choice. G08 shows every method at every fixed τ, so the
-  ranking does not hinge on this. G08, G10 and G11 hold τ and association fixed for every relay method.
+  0.5, the fixed split Sir's text names as the conventional choice. G07 shows every method at every fixed τ, so the
+  ranking does not hinge on this. G07, G09 and G10 hold τ and association fixed for every relay method.
 - **No relay means no Phase II.** `centralized_no_relay` therefore uses τ = 1. An earlier version held it to
   τ ≤ τ_max = 0.8, which wasted a fifth of every block and made the relays look better than they are.
 - **QoS:** RAP-FedWMMSE prices R_min through λᵠ, and its training penalizes outage. The baselines only report outage.
+- **Cooperation order:** L_max = 1 by default. With L_max > 1 every method handles several relays per UE: the rate
+  engine, Centralized WMMSE (one decoding constraint per assisting relay), Local-WMMSE, the heuristics and the
+  exact MINLP. G06 compares L_max = 1 and 2.
+- **Energy:** λ_E = 0 by default, so the main figures maximize the PF utility alone. G13 sweeps λ_E for every
+  method that has a power term.
 - **Link budget (my choice):**
   - path loss: 3GPP UMi NLOS, −30.5 − 36.7 log₁₀(d) dB
   - noise: 20 MHz bandwidth, 7 dB noise figure
@@ -44,7 +49,7 @@ NaN.
 - **Exact is limited to a small network:** 2 APs, 1 relay, 2 UEs, single antennas, τ fixed, and certified to a 1% gap.
   The association variables a_rk are binary, so it is a true MINLP, and its upper bound covers every association,
   not only the one Step 1 picks. With one more UE or antenna, many runs hit a 90 s limit.
-- **Perfect CSI is the default, and pilot overhead is not modelled.** Aging appears only in its own sweep (G09).
+- **Perfect CSI is the default, and pilot overhead is not modelled.** Aging appears only in its own sweep (G08).
 - **AP clusters are chosen from the AP-UE gain,** as in the paper, even for relayed UEs. This is also why the
   association features can misjudge a blocked UE's relay.
 - **A drop is evaluated as one coherence block.** The multi-timescale loop runs inside RAP-FedWMMSE's training,
