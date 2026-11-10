@@ -7,10 +7,14 @@ network:
   n_antennas_ap: 2     # N_A
   n_antennas_relay: 2  # N_R
   l_max: 1             # single relay per user, fixed in v1
+  cluster_top_l: 4     # size of each UE's serving AP cluster
+  max_streams_per_relay: 4  # C_r^max
 
 phase:
   tau_fixed: 0.5
   tau_sweep: [0.3, 0.4, 0.5, 0.6, 0.7]
+  tau_min: 0.2
+  tau_max: 0.8
 
 blockage:
   frac_blocked_ues: 0.3     # 30% of UEs behind blockage
@@ -18,8 +22,16 @@ blockage:
 
 simulation:
   area_size: 500.0
-  path_loss_exponent: 3.2
+  path_loss_ref_db: -30.5    # gain at 1 m, 3GPP UMi NLOS: -30.5 - 36.7 log10(d)
+  path_loss_exponent: 3.67
   shadow_std_db: 4.0
+  min_distance_m: 10.0       # stands in for antenna height difference
+
+link_budget:
+  bandwidth_hz: 20.0e+6
+  noise_psd_dbm_hz: -174.0
+  noise_figure_ue_db: 7.0
+  noise_figure_relay_db: 7.0
 
 aging:
   enabled: false
@@ -28,11 +40,86 @@ aging:
   rho_g: 0.95
 
 power:
-  p_max_ap: 1.0        # normalized units
-  p_max_relay: 1.0
+  p_max_ap: 1.0        # Watts (30 dBm)
+  p_max_relay: 1.0     # Watts (30 dBm)
+  pa_efficiency_ap: 0.4     # eta_A
+  pa_efficiency_relay: 0.4  # eta_R
+  circuit_power_ap: 0.2     # P_A^c, Watts
+  circuit_power_relay: 0.2  # P_R^c, Watts
 
-training:
-  mode: "ctde"          # "ctde" (Stage B) or "local_zeta" (Stage C)
+objective:
+  epsilon_0: 1.0e-3    # epsilon_0 in sum_k omega_k log(r_k + epsilon_0)
+  lambda_e: 0.0        # lambda_E, weight of transmit power in P0
+
+qos:
+  r_min: 0.5           # R_k^min in bit/s/Hz; RAP-FedWMMSE prices it, the baselines only report it
+  epsilon_k: 0.1       # maximum permissible outage
+
+association:                # RAP-FedWMMSE Step 1, used by every algorithm with zero QoS prices
+  policy: matching           # "matching" (Step 1) or "blocked_strongest" (relay for blocked UEs only)
+  alpha_relay_ue: 1.0        # alpha_1, on the relay-UE gain relative to the direct link (decades)
+  alpha_ap_relay: 1.0        # alpha_2, on the serving APs' gain to the relay relative to the direct link
+  alpha_interference: 0.25   # alpha_3, on other APs' gain to the relay relative to the serving APs
+  alpha_qos: 1.0             # alpha_4, on the QoS price lambda_Q
+  min_score: 0.5             # a pair is chosen only if Gamma_rk exceeds this
+  eligibility: relay_ue_hop  # pair must have relay-UE hop + alpha_4 lambda_Q > direct link; or "both_hops"
+  # min_score and alpha_3 were calibrated with Centralized WMMSE on deployments 90-95 (never used for
+  # evaluation): +0.31 PF over "blocked_strongest" on average, but one of 12 drops lost 3.07.
+
+mobility:                   # UE movement between slow-timescale epochs (training and warm-up)
+  step_m: 5.0                # standard deviation of each coordinate's step per epoch
+  decorrelation_m: 20.0      # shadowing decorrelation distance
+
+wmmse:
+  max_iters: 100       # mean PF utility is 7.12 at 30 iterations and 7.32 at 100
+  tol: 1.0e-3          # stop when the PF utility improves by less than this
+  optimize_tau: true   # P0 includes tau, so the centralized benchmark optimizes it per block
+  local_iters: 100
+
+fedwmmse:                   # RAP-FedWMMSE (train/rap_fedwmmse.py, docs/RAP_FEDWMMSE.md)
+  layers: 6                  # L, unfolded WMMSE layers in training and deployment
+  epochs: 30                 # E, federated epochs
+  local_steps: 4             # E_loc, local training steps per epoch
+  batch_blocks: 8            # coherence blocks per local step
+  lr: 3.0e-3                 # eta_theta
+  softmin_kappa: 10.0        # kappa of the soft-min DF rate
+  eta_q: 0.2                 # eta_Q, QoS dual step inside each layer
+  eta_d: 0.2                 # eta_D, DF dual step inside each layer
+  eta_q_epoch: 0.5           # QoS dual step between epochs (slow timescale)
+  eta_d_epoch: 0.5
+  robust_rho: 0.98           # rho of p(H | H_hat) for the CSI-error samples when aging is off
+  csi_samples: 4             # S
+  outage_weight: 1.0         # lambda_O
+  outage_sharpness: 10.0     # slope of the sigmoid outage surrogate
+  adapt_tau: true            # Step 2
+  adapt_association: true    # Step 1 with QoS prices
+  warmup_epochs: 3           # slow-timescale epochs on a new drop's statistics before inference
+  warmup_blocks: 4
+  validation_instances: 4    # drops scored for the learning curves
+  validation_every: 0        # score every this many epochs; 0 scores the last epoch only
+  grad_clip: 1.0
+  topk_fraction: 0.1         # kappa_i of Top-k compression
+  budget_bytes: 40000        # B_FL per epoch, for uploads
+  trigger_threshold: 0.3     # delta_FL
+  trigger_weights: [1.0, 1.0, 1.0, 1.0]   # beta_1..beta_4
+  age_max: 5                 # A_max
+  grad_max: 1.0              # G_max
+
+exact:
+  num_aps: 2
+  num_relays: 1
+  num_ues: 2
+  n_antennas_ap: 1
+  n_antennas_relay: 1
+  cluster_top_l: 2
+  max_streams_per_relay: 2
+  frac_blocked_ues: 0.5
+  time_limit_s: 300
+  gap_limit: 0.01
+  optimize_association: false
+
+training:                # the earlier neural CTDE baseline only (neural_ctde, run_federated.py)
+  mode: "ctde"
   batch_drops: 64        # number of network drops per training batch
   epochs: 200
   lr: 1.0e-3

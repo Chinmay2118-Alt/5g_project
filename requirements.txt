@@ -4,3 +4,6 @@ PyYAML>=6.0
 --extra-index-url https://download.pytorch.org/whl/cpu
 torch==2.14.0+cpu
 pytest>=7.0
+cvxpy>=1.7
+clarabel>=0.9
+PySCIPOpt>=5.0

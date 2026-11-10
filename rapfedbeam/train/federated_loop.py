@@ -13,6 +13,8 @@ from eval.metrics import evaluate_pf_utility_on_holdout
 
 def run_federated_experiment(config, fl_mode):
     network = config["network"]
+    # Every FL mode starts from the same initial weights, so the modes are comparable.
+    torch.manual_seed(config.get("seed", 42))
     ap_dim = network["num_ues"] * network["n_antennas_ap"] + network["num_relays"] * network["n_antennas_relay"] * network["n_antennas_ap"]
     relay_dim = network["num_aps"] * network["n_antennas_relay"] * network["n_antennas_ap"] + network["num_ues"] * network["n_antennas_relay"]
     

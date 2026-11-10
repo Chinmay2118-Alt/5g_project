@@ -22,23 +22,39 @@ def build_beams_from_power_coeffs(beam_directions, power_coeffs, p_max):
 
 
 def mrt_beam_directions(h_mk):
-    # PSEUDOCODE: w_dir_mk = h_mk.conj() / ||h_mk||   (per-AP-per-UE unit vector, ignores interference)
+    # Received gain is h^H w, so the matched beam is w = h / ||h|| (giving h^H w = ||h||).
+    # Works for any [nodes, users, antennas] channel, including relay-to-UE g_rk.
     h_mk = np.asarray(h_mk)
     norms = np.linalg.norm(h_mk, axis=-1, keepdims=True)
-    return np.conj(h_mk) / np.maximum(norms, 1e-12)
+    return h_mk / np.maximum(norms, 1e-12)
 
 
-def rzf_beam_directions(h_mk, reg_eps):
-    # PSEUDOCODE: standard regularized zero-forcing across UEs served by same AP cluster
-    # w_dir = H^H (H H^H + reg_eps * I)^-1 , normalize each column to unit norm
+def ap_target_channels(h_hat, G_hat, relay_assoc):
+    # The channel each AP should steer stream k along, shape [M, K, N_A]: towards the UE, or for a
+    # relayed UE towards its relay (dominant receive direction of G_mr), because r_k <= C_AR
+    # makes the relay the receiver that must decode Phase I. Uses only that AP's own CSI.
+    targets = np.array(h_hat, dtype=np.complex128, copy=True)
+    for m in range(targets.shape[0]):
+        for k, relay_id in enumerate(np.asarray(relay_assoc)):
+            if relay_id >= 0:
+                left, _, _ = np.linalg.svd(G_hat[m, relay_id], full_matrices=False)
+                targets[m, k] = G_hat[m, relay_id].conj().T @ left[:, 0]
+    return targets
+
+
+def rzf_beam_directions(h_mk, reg_eps, cluster_mask=None):
+    # Regularized zero-forcing per AP, across the UEs that AP serves.
+    # With H = h^H stacked in rows: w_dir = H^H (H H^H + reg_eps * I)^-1, columns unit norm.
     h_mk = np.asarray(h_mk)
     directions = np.zeros_like(h_mk, dtype=np.complex128)
     for m in range(h_mk.shape[0]):
-        channel_rows = h_mk[m]
-        gram = channel_rows @ channel_rows.conj().T
-        precoder = channel_rows.conj().T @ np.linalg.inv(gram + reg_eps * np.eye(gram.shape[0]))
+        served = np.arange(h_mk.shape[1]) if cluster_mask is None else np.flatnonzero(cluster_mask[m])
+        if not len(served):
+            continue
+        H = np.conj(h_mk[m, served])
+        precoder = H.conj().T @ np.linalg.inv(H @ H.conj().T + reg_eps * np.eye(len(served)))
         norms = np.linalg.norm(precoder, axis=0, keepdims=True)
-        directions[m] = (precoder / np.maximum(norms, 1e-12)).T
+        directions[m, served] = (precoder / np.maximum(norms, 1e-12)).T
     return directions
 
 
@@ -98,15 +114,16 @@ def phase2_sinr_ue(g_rk, v, relay_assoc, noise_var_k):
     # UEs with no relay assigned: gamma2_k = 0 (no Phase II contribution)
     # return gamma2   # shape [K]
     g_rk, v = np.asarray(g_rk), np.asarray(v)
-    num_relays, num_ues = g_rk.shape[:2]
+    num_ues = g_rk.shape[1]
     gamma = np.zeros(num_ues, dtype=float)
     for k in range(num_ues):
         assigned = int(relay_assoc[k])
         if assigned < 0:
             continue
-        gains = np.einsum("rn,rjn->rj", np.conj(g_rk[:, k, :]), v)
-        desired = abs(gains[assigned, k]) ** 2
-        interference = sum(abs(gains[r, j]) ** 2 for r in range(num_relays) for j in range(num_ues) if j != k)
+        # Per-stream gains add coherently across relays, as in the paper's gamma^(2) (L_max > 1 ready).
+        gains = np.einsum("rn,rjn->j", np.conj(g_rk[:, k, :]), v)
+        desired = abs(gains[k]) ** 2
+        interference = sum(abs(gains[j]) ** 2 for j in range(num_ues) if j != k)
         gamma[k] = desired / (interference + noise_var_k)
     return gamma
 
@@ -151,8 +168,8 @@ def compute_full_rates(scenario, channels, w, v, u, tau, hard_min=True, soft_tem
     # C_D      = destination_capacity(gamma1, gamma2, tau)
     # r        = end_to_end_rate(C_D, C_AR, scenario.relay_assoc, hard_min, soft_temp)
     # return r, {debug: gamma1, gamma2, gamma_AR, C_D, C_AR}
-    noise_k = getattr(scenario, "noise_var_ue", 1e-3)
-    noise_r = getattr(scenario, "noise_var_relay", 1e-3)
+    noise_k = scenario.noise_var_ue
+    noise_r = scenario.noise_var_relay
     gamma1 = phase1_sinr_ue(channels.h_mk, w, scenario.cluster_mask, noise_k)
     gamma_ar = phase1_relay_decode_sinr(channels.G_mr, w, u, scenario.relay_assoc, noise_r)
     C_AR = relay_decode_capacity(gamma_ar, tau)
@@ -162,26 +179,23 @@ def compute_full_rates(scenario, channels, w, v, u, tau, hard_min=True, soft_tem
     return rates, {"gamma1": gamma1, "gamma_AR": gamma_ar, "gamma2": gamma2, "C_D": C_D, "C_AR": C_AR}
 
 
-def mmse_combiners(G_hat, w, noise_var=1e-3):
+def mmse_combiners(G_hat, w, noise_var=1.0):
     """Return normalized per-relay/user MMSE combiners from effective AP-relay channel estimates.
 
     Args:
         G_hat:     AP-to-relay channel estimates, shape [M, R, N_R, N_A]
         w:         AP beamforming weights, shape [M, K, N_A]
-        noise_var: noise variance at relay receive antennas (also used for regularization)
+        noise_var: noise variance at relay receive antennas
     """
     G_mr, w = np.asarray(G_hat), np.asarray(w)
     num_relays, num_ues, n_relay = G_mr.shape[1], w.shape[1], G_mr.shape[2]
     combiners = np.zeros((num_relays, num_ues, n_relay), dtype=np.complex128)
+    # Effective channel: shape [R, N_R, K]; effective[r] = [N_R, K]
+    effective = np.einsum("mrna,mka->rnk", G_mr, w)
     for r in range(num_relays):
-        # Effective channel: shape [R, N_R, K]; effective[r] = [N_R, K]
-        effective = np.einsum("mrna,mka->rnk", G_mr, w)
         eff_r = effective[r]  # [N_R, K]
-        # Covariance = Σ_k e_k e_k^H + noise * I.  Add trace-based regularisation
-        # to ensure positive definiteness even when all beams are near-zero.
-        cov_signal = eff_r @ eff_r.conj().T
-        reg = max(float(np.real(np.trace(cov_signal))) * 1e-4, noise_var)
-        covariance = cov_signal + reg * np.eye(n_relay)
+        # Covariance = Σ_k e_k e_k^H + noise * I, positive definite since noise_var > 0.
+        covariance = eff_r @ eff_r.conj().T + noise_var * np.eye(n_relay)
         for k in range(num_ues):
             rhs = eff_r[:, k]
             try:

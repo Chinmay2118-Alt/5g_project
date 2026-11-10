@@ -1,10 +1,9 @@
-# RAP-FedBeam (reduced scope)
+# RAP-FedWMMSE
 
-This repository implements the reduced-scope course-project architecture. The
-simulator and baseline path use NumPy; policy, projection, and federated-model
-code use PyTorch. Stage B is centralized-training/decentralized-execution (CTDE),
-as required by the implementation architecture, rather than the paper's exact
-local-Lagrangian mechanism.
+Role-aware personalized federated beam optimization for intelligent-relay-assisted cell-free massive MIMO.
+The repository implements Sir's algorithm, **RAP-FedWMMSE** (unfolded WMMSE with learned parameters,
+primal-dual QoS and DF correction, and event-triggered, compressed, topology-aware personalized federated
+learning). It also implements every baseline it is compared against, and produces the 14 comparison graphs.
 
 Install dependencies from the repository root:
 
@@ -12,40 +11,41 @@ Install dependencies from the repository root:
 python -m pip install -r requirements.txt
 ```
 
-Run the tests from `rapfedbeam/`:
+Run from `rapfedbeam/`:
 
 ```bash
-python -m pytest -q
+python -m pytest -q                                          # about 5 minutes
+python run_experiments.py --drops 20 --deployments 4         # all sweeps and graphs, about an hour on 12 cores
+python run_experiments.py --plot-only                        # redraw graphs from saved results
+python run_simulation.py --drops 20                          # quick heuristic-only check, written to plots/
 ```
 
-Run the physical-layer simulation and print relay/no-relay, heuristic, PF, and
-phase-split results:
+Results and graphs go to `results/` (gitignored).
 
-```bash
-python run_simulation.py --drops 20
-```
+## Documents
 
-The module order is simulator and rates, baselines, role-specific models,
-topology-aware FL, then training and evaluation.
-
-## Honesty reminder (see Section 0 of the implementation plan)
-
-`train/ctde_train.py` (Stage B, the v1 main method) is a **centralized-training /
-decentralized-execution** simplification. It is NOT the paper's proposed local-Lagrangian
-mechanism. Only `train/local_zeta_train.py` (Stage C, stretch goal) actually tests the
-paper's claim that local CSI + a broadcast zeta vector is sufficient. State this
-distinction explicitly in the report — do not present Stage B results as if they were
-the paper's method.
+| Document | Contents |
+|---|---|
+| [docs/RAP_FEDWMMSE.md](docs/RAP_FEDWMMSE.md) | **The main algorithm**: each step mapped to the code, and every interpretation choice |
+| [docs/BASELINES.md](docs/BASELINES.md) | Every algorithm, the shared choices, and known limits |
+| [docs/WMMSE_DERIVATION.md](docs/WMMSE_DERIVATION.md) | The math for the two-phase DF rate |
+| [docs/GRAPH_PLAN.md](docs/GRAPH_PLAN.md) | The 14 graphs and how the comparison is kept fair |
+| [docs/ADDING_AN_ALGORITHM.md](docs/ADDING_AN_ALGORITHM.md) | How to add a method or ablation |
 
 ## Directory map
 
 ```
-configs/        scenario size, blockage, tau, training mode (config.yaml)
-sim/            scenario generation, channel sampling, SINR/rate engine
-baselines/      heuristics + numeric-optimum benchmark (Stage A)
-models/         adapters -> backbone -> heads -> projection
-fl/             topology signature, RBF kernel, aggregation modes, comm cost
-train/          Stage B (ctde), Stage C (local zeta), federated round loop
-eval/           metrics + plots for E1-E6
-tests/          closed-form sanity checks
+configs/      network, link budget, association, RAP-FedWMMSE and solver settings (config.yaml)
+sim/          drops and deployments, channels, rates, association (Step 1), ProblemInstance and BeamSolution
+train/        RAP-FedWMMSE (rap_fedwmmse.py, unfolded_wmmse.py); the earlier neural CTDE policy
+fl/           RAP-FedWMMSE's federation (communication.py); kernel and aggregation helpers
+baselines/    Centralized and Local WMMSE, exact MINLP, heuristics
+experiments/  algorithm registry, sweep runner, sweep definitions
+eval/         scoring (metrics.py), the 14 graphs (figures.py), earlier plots (plots.py)
+models/       role adapters and the shared backbone, used by RAP-FedWMMSE
+docs/         algorithm, baselines, derivation, graph plan, how to add an algorithm
+tests/        closed forms, solver cross-checks, RAP-FedWMMSE step by step, the experiment harness
 ```
+
+`train/ctde_train.py`, `train/federated_loop.py` and `run_federated.py` are the earlier black-box neural approach
+from before the 15 October direction. They still run, but they are not the proposed method.
