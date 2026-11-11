@@ -20,7 +20,8 @@ shared (ZIP, 100 MB max; give a link if it exceeds that).
 
 ## Remaining human steps (not done by the code)
 
-1. Fill the real author names/emails in `paper/main.tex`.
+1. Verify the teammate emails in `paper/main.tex` (institute pattern
+   `<rollno>@iiitdwd.ac.in`) and the author order.
 2. Create the Overleaf project from `Overleaf_Source.zip` (Sir's Step 1).
 3. Run ≥ 2 Google Deep Review rounds; log them in `REVISION_LOG.md`
    (Sir's Step 2); update the paper after each round and recompile.

@@ -6,11 +6,13 @@ template (IEEEtran) Sir shared. It compiles locally with MiKTeX
 in it is taken from the committed figure CSVs in `../rapfedbeam/figures/`
 (100 drops over 10 deployments, 95% CIs).
 
-## Before submitting — fill these in
+## Before submitting — check these
 
-1. **Author names.** `main.tex` has placeholders `[Teammate 2]`,
-   `[Teammate 3]`, `[email of teammate 2/3]` in the author block. Put the
-   real names and institute emails, in the order the team agrees on.
+1. **Author emails.** The author block lists Kushagra Kumar Arora
+   (24BCS061), Chinmay Pramod Ardalkar (24BEC007), Rachit Yadav (24BEC049)
+   and Saurav Anand Jha (24BEC054). The teammate emails use the institute
+   pattern `<rollno>@iiitdwd.ac.in` — verify they are right, and reorder
+   the authors if the team prefers a different order.
 2. Nothing else is a placeholder. Do not change reported numbers by hand;
    if an experiment is rerun, regenerate the figures and update the text
    from the new CSVs.

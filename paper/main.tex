@@ -2,11 +2,8 @@
 % RAP-FedWMMSE — IEEE conference paper (Group 12, IIIT Dharwad)
 % Template: IEEE Conference Template (IEEEtran), as shared by Sir.
 %
-% TODO before submission:
-%   1. Fill in the real author names, roll numbers and emails below
-%      (placeholders are marked [Teammate ...]).
-%   2. If the course requires it, add the course name/number to the title
-%      footnote.
+% Note: teammate emails use the institute pattern <rollno>@iiitdwd.ac.in —
+% verify them before submission.
 % Every number in this paper is taken from the committed figure CSVs in
 % rapfedbeam/figures/ (100 drops over 10 deployments, 95% CIs).
 % =====================================================================
@@ -25,6 +22,12 @@
 
 \graphicspath{{figures/}}
 
+\makeatletter
+\newcommand{\linebreakand}{%
+  \end{@IEEEauthorhalign}\hfill\mbox{}\par
+  \mbox{}\hfill\begin{@IEEEauthorhalign}}
+\makeatother
+
 \newcommand{\norm}[1]{\left\lVert #1 \right\rVert}
 \newcommand{\abs}[1]{\left\lvert #1 \right\rvert}
 \newcommand{\herm}{^{\mathsf{H}}}
@@ -40,23 +43,29 @@ Intelligent-Relay-Assisted Cell-Free Massive MIMO\\
 }
 
 \author{
-\IEEEauthorblockN{Chinmay Ardalkar}
+\IEEEauthorblockN{Kushagra Kumar Arora}
 \IEEEauthorblockA{\textit{Indian Institute of Information}\\
-\textit{Technology Dharwad}\\
+\textit{Technology Dharwad} (24BCS061)\\
+Dharwad, India \\
+24bcs061@iiitdwd.ac.in}
+\and
+\IEEEauthorblockN{Chinmay Pramod Ardalkar}
+\IEEEauthorblockA{\textit{Indian Institute of Information}\\
+\textit{Technology Dharwad} (24BEC007)\\
 Dharwad, India \\
 ardalkarchinmay10@gmail.com}
-\and
-\IEEEauthorblockN{[Teammate 2]}
+\linebreakand
+\IEEEauthorblockN{Rachit Yadav}
 \IEEEauthorblockA{\textit{Indian Institute of Information}\\
-\textit{Technology Dharwad}\\
+\textit{Technology Dharwad} (24BEC049)\\
 Dharwad, India \\
-{[email of teammate 2]}}
+24bec049@iiitdwd.ac.in}
 \and
-\IEEEauthorblockN{[Teammate 3]}
+\IEEEauthorblockN{Saurav Anand Jha}
 \IEEEauthorblockA{\textit{Indian Institute of Information}\\
-\textit{Technology Dharwad}\\
+\textit{Technology Dharwad} (24BEC054)\\
 Dharwad, India \\
-{[email of teammate 3]}}
+24bec054@iiitdwd.ac.in}
 }
 
 \maketitle
