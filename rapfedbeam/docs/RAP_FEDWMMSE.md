@@ -39,7 +39,7 @@ term is measured in decades (10 dB) **relative to the UE's direct link**:
 - β̄ᴬᴿ is the gain from the UE's serving APs to the relay, minus the direct gain.
 - Ī is the other APs' gain at the relay relative to the serving APs'.
 
-A pair is chosen only if Γ > `association.min_score` (0). Every algorithm uses this matching with zero QoS prices,
+A pair is chosen only if Γ > `association.min_score` (0.5). Every algorithm uses this matching with zero QoS prices,
 so all methods share one association rule. RAP-FedWMMSE also feeds its QoS prices into the score.
 
 ### Step 2: τ search
@@ -133,6 +133,10 @@ p(H | Ĥ) is the paper's aging model, H = ρĤ + √(1−ρ²) E, with E at each
 `aging` settings when aging is on. Otherwise it is `fedwmmse.robust_rho` = 0.98, so training stays robust even when
 evaluation uses perfect CSI.
 
+The CSI-error draws enter **only the outage term**. J itself is evaluated once, on the channel estimates
+(`_local_step`: `loss = J + λ_O Σ relu(p̂ − ε)`); it is not averaged over the draws. The beams and combiners are
+held fixed across the draws.
+
 ### Step 11: what is local in training
 
 Sir's J (Step 9) sums over every UE, so it is the network objective, and θ_i ← θ_i − η ∇_{θ_i} L_i asks for the
@@ -185,6 +189,10 @@ utility from −1.45 to −0.98 on the small network (untrained: −1.07; worst 
 on the default network, at the same training time. That pilot used evaluation drops, which is a mild form of test-set
 selection; the final run uses 100 drops, of which those 20 are a fifth. Evaluation drops are different UE drops on the same deployment;
 training and validation drop IDs start at 10⁶ and 2·10⁶ so they can never coincide with evaluation drops.
+
+During training, the slow vector ζ(t), including the QoS and DF prices, is carried from one epoch to the next
+even though each epoch draws new UEs (`run` never resets `self.coordination`). It therefore acts as a warm start
+rather than a per-user quantity. Deployment is not affected: `solve` resets it for every drop.
 
 When solving a new drop, `solve` first runs `warmup_epochs` slow-timescale epochs on freshly sampled fading blocks
 of that drop's geometry. These set the QoS prices, association and τ. Sampled blocks need only large-scale

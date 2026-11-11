@@ -46,16 +46,24 @@ the `kushagra` branch of our repository.
 
 ## Main findings
 
-1. **Among distributed methods, RAP-FedWMMSE is by far the best:** +11.3 ± 0.4 PF utility over Local-WMMSE.
+1. **Among methods without central CSI, RAP-FedWMMSE is the best:** +11.3 ± 0.4 PF utility over Local-WMMSE,
+   +10.3 over RZF, and +4.0 ± 0.2 over the same layers untrained.
    - It reaches 76% of the centralized mean rate, with an outage of 4.0% against 3.0%.
-   - It uses only local CSI plus ζ.
-   - It runs about 50 times faster than the centralized method.
-   - Its runtime does not grow with the number of UEs (G11).
-2. **The learning works.** The trained layers beat the same layers untrained:
-   - by +4.0 ± 0.2 PF utility on the default network, winning on 99 of 100 drops;
-   - at every depth from 1 to 10 layers (G09).
+   - It uses only local CSI plus the coordination it exchanges (ζ).
+   - Its computation is about an order of magnitude faster than the centralized method, and does not grow with
+     the number of UEs (G11). Part of this gap is that the centralized method calls a general conic solver
+     (CVXPY), and the timings do not include the latency of exchanging ζ at every layer.
+2. **Where the gain comes from** (paired over the same 100 drops; a correction to our earlier draft, which
+   credited the whole +4.0 to learning):
+   - exchanging ζ between nodes (untrained layers against Local-WMMSE): **+7.3**;
+   - the learned layer parameters (same τ = 0.5 and association, G09 at 6 layers): **+0.9 ± 0.2**, winning
+     on 90 of 100 drops, and at every depth from 1 to 10 layers;
+   - the slow timescale of Steps 1–2 (τ adaptation, priced association, warm-up): **+3.1 ± 0.3**.
+
+   So the learning helps, but modestly. Most of the gain comes from the coordination and from Steps 1–2.
 3. **The robust training of Step 10 pays off under stale CSI (G08).** RAP-FedWMMSE significantly beats the
-   centralized method for ρ ≤ 0.9, by +1.01 ± 0.40 at ρ = 0.8.
+   centralized method for ρ ≤ 0.9, by +1.01 ± 0.40 at ρ = 0.8. This comparison favors our method: it is retrained
+   at each ρ with the matching error model, while the centralized method treats the stale estimate as exact.
 4. **The energy term works (G13).** With λ_E = 0.1, RAP-FedWMMSE uses 22% less power (23.9 → 18.7 W) for a PF loss of
    0.14.
 5. **Relays mainly protect the weakest users.**
@@ -71,7 +79,9 @@ the `kushagra` branch of our repository.
 ## Results that do not support our hypotheses
 
 - **Federation does not measurably improve PF utility** in our setting. Personalized aggregation, FedAvg and no
-  federation are within noise: −0.06 ± 0.19 between personalized and no FL. Personalized aggregation reaches the
+  federation are within noise: −0.06 ± 0.19 between personalized and no FL. Two simulation choices favor no FL:
+  every node trains on unlimited fresh channels, and training back-propagates the global objective through all
+  nodes, so even the no-FL nodes learn from network-wide gradients. Personalized aggregation reaches the
   same utility as FedAvg with 45% less communication (11 MB against 20 MB, G12). With a tight fronthaul, FL
   participation drops sharply, while utility hardly changes (G14).
 - **On the small single-antenna network, trained RAP-FedWMMSE is worse than untrained:** 1.12 against 0.80 below
@@ -96,6 +106,9 @@ the `kushagra` branch of our repository.
    slowly moving drop, the model overfit it.
 6. **Fronthaul:** the limit restricts FL traffic only. User data is not throttled, and an AP whose user data
    alone exceeds F_max is reported as overloaded.
+
+We also checked the paper with Google Deep Review. Its first round found the attribution error corrected in
+finding 2 above, and asked for missing definitions and assumptions, which the revised paper now states.
 
 ## Assumptions
 

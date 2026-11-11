@@ -9,7 +9,7 @@ NaN.
 | `rap_fedwmmse` | **RAP-FedWMMSE, Sir's algorithm** | Local + ζ | See [RAP_FEDWMMSE.md](RAP_FEDWMMSE.md) |
 | `rap_fedwmmse_fedavg` | Ablation: FedAvg instead of personalized aggregation | Local + ζ | Dense uploads, everyone participates |
 | `rap_fedwmmse_nofl` | Ablation: local training only, no federation | Local + ζ | |
-| `unfolded_wmmse` | Ablation: the same layers, untrained | Local + ζ | Classical per-node WMMSE with damping 0.5 |
+| `unfolded_wmmse` | Ablation: the same layers, untrained | Local + ζ | Classical per-node WMMSE with damping 0.5, τ = 0.5, zero prices, no warm-up: no slow timescale at all, so its gap to RAP-FedWMMSE is learning plus Steps 1–2 |
 | `centralized_wmmse` | Centralized WMMSE-SCA/AO | Full, at a CPU | Optimizes τ per block, as P0 does |
 | `centralized_no_relay` | The same, without relays | Full | τ = 1: with no Phase II the APs transmit for the whole interval |
 | `local_wmmse` | Local-WMMSE / No-FL | Local only, no ζ | τ fixed at 0.5 |

@@ -44,11 +44,22 @@ def _label(name):
     return REGISTRY[name].label
 
 
+# Symbols written plainly in saved labels, typeset as math in the figures to match the paper.
+MATH = {"R_min": r"$R_{\mathrm{min}}$", "L_max": r"$L_{\mathrm{max}}$", "λ_E": r"$\lambda_E$",
+        "F_max": r"$F_{\mathrm{max}}$", "P_tot": r"$P_{\mathrm{tot}}$"}
+
+
+def _tex(text):
+    for plain, math in MATH.items():
+        text = text.replace(plain, math)
+    return text
+
+
 def _style(ax, title, xlabel, ylabel):
     ax.set_facecolor(SURFACE)
-    ax.set_title(title, color=INK, fontsize=10, loc="left", pad=8)
-    ax.set_xlabel(xlabel, color=INK_SECONDARY, fontsize=9)
-    ax.set_ylabel(ylabel, color=INK_SECONDARY, fontsize=9)
+    ax.set_title(_tex(title), color=INK, fontsize=10, loc="left", pad=8)
+    ax.set_xlabel(_tex(xlabel), color=INK_SECONDARY, fontsize=9)
+    ax.set_ylabel(_tex(ylabel), color=INK_SECONDARY, fontsize=9)
     ax.tick_params(colors=INK_SECONDARY, labelsize=8, length=0)
     ax.grid(True, color=GRID, linewidth=0.6)
     ax.set_axisbelow(True)
@@ -67,7 +78,7 @@ def _axes(title, xlabel, ylabel):
 def _axes_pair(suptitle, panels):
     """Two panels side by side; panels = [(title, xlabel, ylabel), (title, xlabel, ylabel)]."""
     fig, axes = plt.subplots(1, 2, figsize=(11.0, 4.4), dpi=150, facecolor=SURFACE)
-    fig.suptitle(suptitle, color=INK, fontsize=11, x=0.01, ha="left")
+    fig.suptitle(_tex(suptitle), color=INK, fontsize=11, x=0.01, ha="left")
     for ax, (title, xlabel, ylabel) in zip(axes, panels):
         _style(ax, title, xlabel, ylabel)
     return fig, axes
@@ -81,7 +92,8 @@ def _save(fig, ax, out_dir, stem, header, rows):
         width = fig.get_size_inches()[0]
         columns = 3 if max(len(label) for label in labels) * 0.075 * 3 < width else 2
         legend_rows = (len(handles) + columns - 1) // columns
-        fig.legend(handles, labels, frameon=False, fontsize=8, labelcolor=INK_SECONDARY, loc="lower center", ncol=columns)
+        fig.legend(handles, [_tex(label) for label in labels], frameon=False, fontsize=8, labelcolor=INK_SECONDARY,
+                   loc="lower center", ncol=columns)
         fig.tight_layout(rect=(0, 0.025 + 0.042 * legend_rows, 1, 1))
     else:
         fig.tight_layout()
@@ -337,7 +349,7 @@ def figure_energy(results_dir, out_dir):
             last = None
             for lam, power, utility in sorted(zip([x for x, _, _ in stats], powers, utilities), key=lambda item: item[1]):
                 if last is None or power - last > 1.6:
-                    ax.annotate(f"λ_E={lam:g}", (power, utility), xytext=(-4, -12), textcoords="offset points", fontsize=7, color=color)
+                    ax.annotate(_tex(f"λ_E={lam:g}"),(power, utility), xytext=(-4, -12), textcoords="offset points", fontsize=7, color=color)
                     last = power
     _save(fig, ax, out_dir, "G13_energy_tradeoff", ["lambda_e", "algorithm", "total_power_w", "power_ci95", "pf_utility", "pf_ci95"], rows)
     return True
@@ -371,7 +383,7 @@ def figure_fronthaul(results_dir, out_dir):
     axes[1].set_xscale("log")
     axes[1].set_xticks(x_values, [str(x) for x in x_values])
     # The shared legend is built from panel (a), so panel (b)'s extra line gets a proxy entry there.
-    axes[0].plot([], [], color=AXIS, linewidth=1.2, linestyle="--", label="(b) APs whose user data alone exceeds F_max")
+    axes[0].plot([], [], color=AXIS, linewidth=1.2, linestyle="--", label="APs whose user data alone exceeds F_max (panel b)")
     _save(fig, axes[0], out_dir, "G14_fronthaul", ["x", "series", "value", "ci95_half_width"], rows)
     return True
 

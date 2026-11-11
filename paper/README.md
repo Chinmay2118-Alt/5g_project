@@ -2,7 +2,7 @@
 
 `main.tex` is the complete research paper, built on the IEEE conference
 template (IEEEtran) Sir shared. It compiles locally with MiKTeX
-(`pdflatex main.tex`, run twice) to the 9-page `main.pdf`, and every number
+(`pdflatex main.tex`, run twice) to the 11-page `main.pdf` (Revision 1), and every number
 in it is taken from the committed figure CSVs in `../rapfedbeam/figures/`
 (100 drops over 10 deployments, 95% CIs).
 
@@ -43,8 +43,9 @@ requirements (100 MB max as ZIP, link if larger).
 | File | What it is |
 |---|---|
 | `main.tex` | The paper source |
-| `main.pdf` | Compiled paper (9 pages) |
+| `main.pdf` | Compiled paper (Revision 1, 11 pages) |
 | `figures/` | The 14 result figures (copies of `../rapfedbeam/figures/*.png`) |
 | `Overleaf_Source.zip` | Ready-to-upload Overleaf project |
-| `REVISION_LOG.md` | Template for the Deep Review revision reports |
+| `REVISION_LOG.md` | Deep Review revision report: comments and changes per round (Round 1 done) |
+| `deepreview_round1.md` | The full Round 1 review text from Google Deep Review |
 | `SUBMISSION_CHECKLIST.md` | Everything the Google Form submission needs |

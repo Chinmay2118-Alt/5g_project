@@ -55,10 +55,13 @@ See [`rapfedbeam/README.md`](rapfedbeam/README.md) for the table and
 
 **What holds**
 - **Best distributed method:** RAP-FedWMMSE is far ahead of Local-WMMSE (+11.3 PF).
-- **Learning helps:** trained beats untrained by +4.0 PF.
+- **Learning helps, modestly:** +0.9 PF from the learned parameters at fixed τ. The +4.0 over the untrained
+  layers is mostly the slow timescale (+3.1 from τ adaptation and priced association); exchanging ζ gives +7.3
+  over Local-WMMSE. See Table III of the paper.
 - **Robust to stale CSI:** it beats Centralized at ρ ≤ 0.9.
 - **Energy:** it saves 22% power at λ_E = 0.1, for a PF loss of 0.14.
-- **Speed:** it runs about 50 times faster than Centralized.
+- **Speed:** about an order of magnitude less computation than Centralized (partly solver overhead; timings are
+  noisy, and they exclude the per-layer ζ exchange).
 - **Weakest users:** relays triple the 5th-percentile rate.
 
 **What does not**
