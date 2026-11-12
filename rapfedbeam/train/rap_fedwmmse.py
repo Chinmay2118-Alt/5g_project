@@ -454,6 +454,7 @@ class UnfoldedWMMSE(Algorithm):
 
     name = "unfolded_wmmse"
     label = "Unfolded WMMSE, untrained"
+    relaxation = INITIAL_DAMPING
 
     @torch.no_grad()
     def solve(self, instance):
@@ -464,7 +465,58 @@ class UnfoldedWMMSE(Algorithm):
                                torch.zeros(1, net.g.shape[1], net.g.shape[2], dtype=RDTYPE))
         duals = (torch.zeros(1, net.h.shape[2], dtype=RDTYPE), torch.zeros(1, net.g.shape[1], net.h.shape[2], dtype=RDTYPE))
         s = config["fedwmmse"]
-        W, V, _ = unfold(net, W0, V0, fixed_params(net, layers), duals, layers, s["softmin_kappa"], s["eta_q"], s["eta_d"])
+        params = fixed_params(net, layers, damping=self.relaxation)
+        W, V, _ = unfold(net, W0, V0, params, duals, layers, s["softmin_kappa"], s["eta_q"], s["eta_d"])
         W, V = W[0].numpy(), V[0].numpy()
         U = mmse_combiners(instance.channels.G_hat, W, scenario.noise_var_relay)
         return BeamSolution(W, V, U, instance.tau, np.asarray(scenario.relay_assoc), info={"layers": layers})
+
+
+@register
+class ClassicalWMMSELayers(UnfoldedWMMSE):
+    """Diagnostic: the same layers with eta = delta = lambda_reg = 1, which is undamped classical
+    per-node WMMSE with every node updating in parallel (tests/test_rap_fedwmmse.py checks the
+    equivalence). No slow timescale, tau fixed."""
+
+    name = "classical_wmmse_layers"
+    label = "Per-node WMMSE, undamped"
+    relaxation = 1.0
+
+
+class _UntrainedTrainer(RapFedWMMSETrainer):
+    """RAP-FedWMMSE's deployment path (warm-up epochs, tau search, QoS-priced association, in-layer
+    prices started from the slow prices) driven by the fixed, untrained layer parameters instead of
+    the node models. It isolates the training-free slow timescale (Steps 1-2) from the learning."""
+
+    def __init__(self, config, seed, deployment, relaxation):
+        super().__init__(config, seed, deployment, "none")
+        self.relaxation = relaxation
+
+    def policy(self, net, coordination, layers=None):
+        layers = self.settings["layers"] if layers is None else layers
+        B, M, K, R = net.batch, net.h.shape[1], net.h.shape[2], net.g.shape[1]
+        W0, V0 = initial_beams(net, torch.zeros(B, M, K, dtype=RDTYPE), torch.zeros(B, R, K, dtype=RDTYPE))
+        duals = (torch.as_tensor(coordination.qos, dtype=RDTYPE).expand(B, -1).clone(),
+                 torch.as_tensor(coordination.df, dtype=RDTYPE).expand(B, -1, -1).clone())
+        params = fixed_params(net, layers, damping=self.relaxation)
+        return unfold(net, W0, V0, params, duals, layers, self.settings["softmin_kappa"], self.settings["eta_q"], self.settings["eta_d"])
+
+
+@register
+class UnfoldedWMMSESlow(Algorithm):
+    """Ablation: the untrained layers plus the training-free slow timescale (Steps 1-2 and the
+    warm-up), exactly as RAP-FedWMMSE deploys, but with no learned parameters."""
+
+    name = "unfolded_wmmse_slow"
+    label = "Unfolded WMMSE, untrained, with Steps 1-2"
+    relaxation = INITIAL_DAMPING
+
+    def solve(self, instance):
+        return _UntrainedTrainer(instance.config, 0, 0, self.relaxation).solve(instance)
+
+
+@register
+class ClassicalWMMSESlow(UnfoldedWMMSESlow):
+    name = "classical_wmmse_slow"
+    label = "Per-node WMMSE, undamped, with Steps 1-2"
+    relaxation = 1.0

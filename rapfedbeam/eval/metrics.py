@@ -68,6 +68,20 @@ def total_power(instance, solution):
     return transmit_power(instance, solution) + instance.config["network"]["num_aps"] * power["circuit_power_ap"] + active_relays * power["circuit_power_relay"]
 
 
+def time_averaged_power(instance, solution):
+    """Energy per unit-length block: APs radiate only in Phase I (tau) and relays only in Phase II
+    (1 - tau), so their transmit terms are weighted by the phase durations; circuit power is
+    counted for the whole block. P_tot (total_power) is the unweighted power drawn while
+    transmitting, the model the objective uses; this is reported beside it."""
+    power = instance.config["power"]
+    num_relays = instance.config["network"]["num_relays"]
+    active_relays = int(as_assoc_matrix(solution.relay_assoc, num_relays).any(axis=1).sum())
+    ap = float(np.sum(np.abs(solution.W) ** 2)) / power["pa_efficiency_ap"]
+    relay = float(np.sum(np.abs(solution.V) ** 2)) / power["pa_efficiency_relay"]
+    return (solution.tau * ap + (1.0 - solution.tau) * relay
+            + instance.config["network"]["num_aps"] * power["circuit_power_ap"] + active_relays * power["circuit_power_relay"])
+
+
 def evaluate_solution(instance, solution):
     """The single scoring path: feasibility, then rates on the TRUE channels, whatever the algorithm saw."""
     check_feasibility(instance, solution)
@@ -82,6 +96,7 @@ def evaluate_solution(instance, solution):
         "sum_rate": float(rates.sum()),
         "transmit_power": transmit_power(instance, solution),
         "total_power": total_power(instance, solution),
+        "average_power": time_averaged_power(instance, solution),
         "debug": debug,
     }
 

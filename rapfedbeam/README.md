@@ -32,11 +32,15 @@ committed in [`figures/`](figures/).
 
 | Method | PF utility | Mean rate (bit/s/Hz) | 5th-percentile rate | Time per drop |
 |---|---|---|---|---|
-| Centralized WMMSE-SCA/AO | 9.88 ± 0.40 | 4.57 | 0.67 | about 19 s |
-| Centralized WMMSE, no relay (τ = 1) | 9.80 ± 0.53 | 5.41 | 0.18 | about 4 s |
-| **RAP-FedWMMSE** | **7.88 ± 0.51** | **3.49** | **0.57** | **about 0.3 s** |
-| Unfolded WMMSE, untrained | 3.87 ± 0.46 | 2.06 | 0.36 | 0.1 s |
-| Local-WMMSE / No-FL | −3.43 ± 0.43 | 0.89 | 0.20 | about 1 s |
+| Centralized WMMSE-SCA/AO | 9.88 ± 0.40 | 4.57 | 0.67 | 5.05 s |
+| Centralized WMMSE, no relay (τ = 1) | 9.80 ± 0.53 | 5.41 | 0.18 | 1.46 s |
+| **RAP-FedWMMSE** | **7.88 ± 0.51** | **3.49** | **0.57** | **0.16 s** (0.03 s per block) |
+| Unfolded WMMSE, untrained | 3.87 ± 0.46 | 2.06 | 0.36 | 0.03 s |
+| Local-WMMSE / No-FL | −3.43 ± 0.43 | 0.89 | 0.20 | 0.32 s |
+
+Times: one clean run (`python -m diagnostics.runtime`), every method on the same 10 drops, one thread, idle machine.
+Extra ablations and diagnostics for the paper's review: `python -m diagnostics.round2 all`. Exact package versions:
+`requirements-lock.txt` at the repository root.
 
 The findings, including what did not work, are in [docs/REPORT_FOR_SIR.md](docs/REPORT_FOR_SIR.md).
 

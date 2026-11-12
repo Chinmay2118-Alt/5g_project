@@ -83,19 +83,60 @@ final results. The figures were redrawn from the saved results (`--plot-only`); 
 
 ## Round 2
 
-**Uploaded:** [date] — Revision 1 (`main.pdf`, 11 pages, commit `[hash]`)
+**Uploaded:** 12 November 2026 — Revision 1 (`main.pdf`, 11 pages, commit `3b352b2`).
+**Full review text:** [`deepreview_round2.md`](deepreview_round2.md).
+
+The review again found every number consistent with the tables and figures, and all references real (18 of
+18). Its verification summaries confirmed the system model, the formulation, the layer equations, the parameter
+counts and the overhead arithmetic. No reported result was found to be wrong. The comments asked for fairer
+ablations, verified diagnoses and more detail. Several required new experiments; they were run on the exact
+drops of the final run, and each first re-scored a configuration from the final run, reproducing it exactly,
+as a determinism check.
 
 ### Review comments received
 
-| # | Section / location | Comment |
-|---|---|---|
-| 2.1 | | |
+| # | Section | Comment (summary) | Our check |
+|---|---|---|---|
+| 2.1 | Weakness 1, VIII-B | The learning adds little. Evaluate the untrained layers *with* the training-free slow timescale, and the undamped classical update (δ = 1), to isolate the learned contribution; damping may inflate it. | Valid request. Ran both (R2.1). The damping concern turned out **wrong**: undamped is worse. |
+| 2.2 | Weakness 2, VIII-J | No-FL also gets network-wide gradients and unlimited data, so it is not a local baseline; the "45% less than FedAvg" claim is confounded when no-FL needs 0 MB. Suggests limited-data / detached-gradient experiments. | Correct on the claim. Experiment not run (see below). |
+| 2.3 | Weakness 3, VIII-E | Aging comparison asymmetric (per-ρ retraining vs. certainty-equivalent); suggests a robust centralized baseline or a single model evaluated zero-shot; Team MMSE not compared. | Valid. Ran the zero-shot test (R2.3). |
+| 2.4 | Weakness 4, III-C | P_tot ignores the phase durations τ and 1 − τ; report time-averaged power. | Correct. |
+| 2.5 | Weakness 5, VIII-G | The starvation cause is an unverified hypothesis; log the predicted parameters on the starved drops; give the u, equalizer and MSE update equations. | Valid. Diagnosed (R2.5). |
+| 2.6 | Abstract | "Overtakes the centralized benchmark under stale CSI" lacks the "certainty-equivalent" qualifier. | Correct. |
+| 2.7 | I | The intro bullet omits the per-layer fast exchange and its overhead. | Correct. |
+| 2.8 | II | A sentence starts with a bare "[8]"; Team MMSE should be contrasted. | Correct. |
+| 2.9 | IV-A | Baselines and the bound solve unconstrained PF, while RAP solves a QoS-penalized relaxation. | Correct. |
+| 2.10 | IV-A | Write r_k(Ĥ); define H; mark A and τ as slow. | Correct. |
+| 2.11 | IV-B, III-B | User data replicated across the cluster; uncapped rates over the fronthaul are a modeling choice; multi-relay synchronization is idealized. | Correct. |
+| 2.12 | V-C, V-D | Missing: initial relayed-beam direction, input-size formulas, head output count, and the fact that η and δ collapse into one effective step. | Correct. Confirmed in code: effective step = ηδ. |
+| 2.13 | V-C, V-G | Interference definition in ζ_s, signature entries, gradient-norm timing, age, Δθ, error feedback, aggregation over the selected set. | Correct. |
+| 2.14 | VIII-H, Table II | Times mix two runs; warm-up not separated from single-block inference; compare against 100 closed-form iterations. | Correct. |
+| 2.15 | Minor | Plain-text "capacity"; units wording; ‖u‖ = 1 only for a_rk = 1; A^AR sign form; ρ overloaded for roles; Algorithm 1 order and the warm-up note; c_mk sum; β not introduced; Table I subscripts; 2- vs 3-decimal gaps; legend labels "(no FL)" and "(converged)". | Correct. |
+| 2.16 | VIII-K, Reprod. | Topology-specific models missing from the limitations; no pinned environment. | Correct. |
 
 ### Modifications made (→ Revision 2)
 
-| # | Addresses | What was changed | Required rerun? |
+| # | Addresses | What was changed | Rerun? |
 |---|---|---|---|
-| R2.1 | 2.1 | | yes / no |
+| R2.1 | 2.1 | New ablations `unfolded_wmmse_slow` and `classical_wmmse_layers/_slow` (`diagnostics/round2.py`). Table III now gives the decomposition in **both orders**: learning **+0.89 ± 0.16** (A) or **+0.61 ± 0.20** (B, 87/100); slow timescale **+3.12** or **+3.40 ± 0.17**. Undamped classical WMMSE is **worse**, 1.68 at L = 6 and −2.65 at L = 100 (it oscillates), so the damped baseline is the stronger one. 100 damped untrained layers (5.54) **beat** 6 trained ones (paired −0.77 ± 0.39): what learning buys is fewer layers. Abstract, VIII-B, VIII-F, limitations and conclusion updated. | New diagnostics only |
+| R2.2 | 2.2 | Rewrote VIII-F and VIII-J, and the abstract: no-FL matches both FL schemes with no FL traffic, so Steps 12–15 have no demonstrated benefit in this regime; the 45% figure is only personalized vs. FedAvg. | No |
+| R2.3 | 2.3 | Zero-shot test: the default model (ρ = 0.98) evaluated at every ρ without retraining. It loses only 0.05–0.33 to the retrained models and **still beats the centralized method** at ρ = 0.8, 0.85, 0.9 (+0.69 ± 0.44, +0.61 ± 0.40, +0.41 ± 0.35). Added to VIII-E. | New diagnostic only |
+| R2.4 | 2.4 | Added the time-averaged power, Eq. (8), and recorded it by **rerunning the energy experiment**. The rerun reproduced every PF and P_tot value exactly. Finding: time-averaged, the relay methods use **less** energy than the no-relay benchmark (17.4 / 17.7 W vs 20.9 W), the opposite of P_tot. Added to VIII-I, the abstract and limitation (vi). | Yes (energy only; identical results) |
+| R2.5 | 2.5 | Starvation diagnosed by re-solving with one change at a time: capping η ≤ 1 cuts starved drops 14 → 8; equal shares → 10; retraining without the QoS machinery → 12. The predicted parameters on starved and other drops are alike. Conclusion: no single trigger; the larger learned steps are the main contributor. Starvation defined as a rate below 0.02 bit/s/Hz. The u_rk, equalizer, MSE and weight equations are written out, with ε′ = 10⁻⁹. | New diagnostic only |
+| R2.6–R2.8 | 2.6–2.8 | Abstract qualified ("with robust training … certainty-equivalent"). The intro bullet now states the per-layer exchange and its overhead. "Chowdhury et al. [8]". Team MMSE contrasted and stated as not implemented. | No |
+| R2.9–R2.11 | 2.9–2.11 | IV-A states the problem mismatch (QoS-penalized vs. pure PF), r_k(Ĥ), the H definition, and that A and τ are slow. IV-B notes the replication and that uncapped rates are a modeling choice. III-B: multi-relay coherence is an idealized upper bound. | No |
+| R2.12–R2.13 | 2.12–2.13 | Initial beams (G^H times the dominant left singular vector; the direct link is not used for a relayed stream; full budget), input formulas, 2L + 1 + K head outputs with one λ_reg, the η·δ product, the ζ_s interference definition, signature entries, age, gradient timing, Δθ, error feedback, aggregation over S; κ indexed by o(i). | No |
+| R2.14 | 2.14 | New clean timing run (`diagnostics/runtime.py`): every method on the same 10 drops, one process, one thread, idle machine; warm-up timed separately from single-block inference; 100 closed-form layers timed too. Table II and VIII-H use these numbers. | New timing run |
+| R2.15 | 2.15 | All minor items fixed. Figures redrawn: "Local-WMMSE" without "(no FL)", "(converged)" only for iterative methods. | No (plot only) |
+| R2.16 | 2.16 | Limitations (xi) topology-specific models and (xii) problem mismatch added. New `requirements-lock.txt` pins the exact versions; the Reproducibility section names it and the diagnostics command. | No |
+
+### Comments not acted on
+
+| # | Comment | Why not |
+|---|---|---|
+| 2.2 | Limited-data / detached-gradient FL experiment. | By the team's decision we did not run experiments aimed at changing the federation verdict. The paper states the negative result, its two likely causes, and what a fair test would need. |
+| 2.3 (part) | Robust (sample-average) centralized baseline; Team MMSE baseline. | Each is a new optimizer beyond the baselines Sir specified. We added the zero-shot test instead, contrasted Team MMSE in Section II, and listed both in limitation (viii). |
+| 2.1 (part) | A separate ablation for the in-layer prices alone. | The in-layer price updates run in both the trained and untrained layers (now stated in VI), so the learning comparison is not confounded by them. |
 
 ---
 

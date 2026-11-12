@@ -37,12 +37,14 @@ the `kushagra` branch of our repository.
 
 | Method | PF utility | Mean rate (bit/s/Hz) | 5th-percentile rate | Outage at 0.5 bit/s/Hz | Time per drop |
 |---|---|---|---|---|---|
-| Centralized WMMSE-SCA/AO | 9.88 ± 0.40 | 4.57 | 0.67 | 3.0% | about 19 s |
-| Centralized WMMSE, no relay | 9.80 ± 0.53 | 5.41 | 0.18 | 10.9% | about 4 s |
-| **RAP-FedWMMSE (proposed)** | **7.88 ± 0.51** | **3.49** | **0.57** | **4.0%** | **about 0.3 s** |
-| Unfolded WMMSE, untrained | 3.87 ± 0.46 | 2.06 | 0.36 | 8.1% | 0.1 s |
-| Local-WMMSE / No-FL | −3.43 ± 0.43 | 0.89 | 0.20 | 34.0% | about 1 s |
-| RZF / MRT, equal power | −2.43 / −5.60 | 1.13 / 0.58 | 0.20 / 0.20 | 38.5% / 48.5% | < 0.01 s |
+| Centralized WMMSE-SCA/AO | 9.88 ± 0.40 | 4.57 | 0.67 | 3.0% | 5.05 s |
+| Centralized WMMSE, no relay | 9.80 ± 0.53 | 5.41 | 0.18 | 10.9% | 1.46 s |
+| **RAP-FedWMMSE (proposed)** | **7.88 ± 0.51** | **3.49** | **0.57** | **4.0%** | **0.16 s** (0.03 s per block) |
+| Unfolded WMMSE, untrained | 3.87 ± 0.46 | 2.06 | 0.36 | 8.1% | 0.03 s |
+| Local-WMMSE / No-FL | −3.43 ± 0.43 | 0.89 | 0.20 | 34.0% | 0.32 s |
+| RZF / MRT, equal power | −2.43 / −5.60 | 1.13 / 0.58 | 0.20 / 0.20 | 38.5% / 48.5% | ≤ 0.001 s |
+
+Times are from one clean run: every method on the same 10 drops, one process, one thread, on an idle machine.
 
 ## Main findings
 
@@ -56,16 +58,19 @@ the `kushagra` branch of our repository.
 2. **Where the gain comes from** (paired over the same 100 drops; a correction to our earlier draft, which
    credited the whole +4.0 to learning):
    - exchanging ζ between nodes (untrained layers against Local-WMMSE): **+7.3**;
-   - the learned layer parameters (same τ = 0.5 and association, G09 at 6 layers): **+0.9 ± 0.2**, winning
-     on 90 of 100 drops, and at every depth from 1 to 10 layers;
-   - the slow timescale of Steps 1–2 (τ adaptation, priced association, warm-up): **+3.1 ± 0.3**.
+   - the learned layer parameters: **+0.6 to +0.9**, depending on whether Steps 1–2 are already on;
+   - the slow timescale of Steps 1–2 (τ adaptation, priced association, warm-up): **+3.1 to +3.4**.
 
    So the learning helps, but modestly. Most of the gain comes from the coordination and from Steps 1–2.
+   100 untrained layers even beat 6 trained ones: what the learning buys is fewer layers. Undamped classical
+   WMMSE is much worse than our untrained baseline, because all nodes update in parallel and it oscillates.
 3. **The robust training of Step 10 pays off under stale CSI (G08).** RAP-FedWMMSE significantly beats the
    centralized method for ρ ≤ 0.9, by +1.01 ± 0.40 at ρ = 0.8. This comparison favors our method: it is retrained
    at each ρ with the matching error model, while the centralized method treats the stale estimate as exact.
+   A single model trained once (ρ = 0.98) and never retrained still beats it at ρ = 0.8, 0.85 and 0.9.
 4. **The energy term works (G13).** With λ_E = 0.1, RAP-FedWMMSE uses 22% less power (23.9 → 18.7 W) for a PF loss of
-   0.14.
+   0.14. Weighted by how long each node actually transmits (time-averaged power), relay-assisted operation uses
+   *less* energy than the no-relay network (17.4 W against 20.9 W).
 5. **Relays mainly protect the weakest users.**
    - At the default 25% blockage, they triple the 5th-percentile rate (0.57 with RAP-FedWMMSE against 0.18 without
      relays) and cut outage from 10.9% to 3–4% (G01–G03).

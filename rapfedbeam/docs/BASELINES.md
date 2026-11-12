@@ -10,6 +10,8 @@ NaN.
 | `rap_fedwmmse_fedavg` | Ablation: FedAvg instead of personalized aggregation | Local + ζ | Dense uploads, everyone participates |
 | `rap_fedwmmse_nofl` | Ablation: local training only, no federation | Local + ζ | |
 | `unfolded_wmmse` | Ablation: the same layers, untrained | Local + ζ | Classical per-node WMMSE with damping 0.5, τ = 0.5, zero prices, no warm-up: no slow timescale at all, so its gap to RAP-FedWMMSE is learning plus Steps 1–2 |
+| `unfolded_wmmse_slow` | Diagnostic: the untrained layers plus the training-free slow timescale (Steps 1–2, warm-up) | Local + ζ | Isolates learning from Steps 1–2 (`diagnostics/round2.py`) |
+| `classical_wmmse_layers`, `classical_wmmse_slow` | Diagnostic: undamped classical per-node WMMSE (η = δ = λ_reg = 1), without and with Steps 1–2 | Local + ζ | Oscillates when all nodes update in parallel; worse than the damped ablation |
 | `centralized_wmmse` | Centralized WMMSE-SCA/AO | Full, at a CPU | Optimizes τ per block, as P0 does |
 | `centralized_no_relay` | The same, without relays | Full | τ = 1: with no Phase II the APs transmit for the whole interval |
 | `local_wmmse` | Local-WMMSE / No-FL | Local only, no ζ | τ fixed at 0.5 |

@@ -51,6 +51,7 @@ def _score(algorithm, config, seed, drop_idx, deployment):
         "rates": metrics["rates"].tolist(),
         "transmit_power": metrics["transmit_power"],
         "total_power": metrics["total_power"],
+        "average_power": metrics["average_power"],
         "seconds": seconds,
         "info": {key: value for key, value in solution.info.items()},
     }

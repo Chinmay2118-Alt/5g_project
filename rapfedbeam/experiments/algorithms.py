@@ -70,7 +70,7 @@ class CentralizedWMMSENoRelay(Algorithm):
 @register
 class LocalWMMSE(Algorithm):
     name = "local_wmmse"
-    label = "Local-WMMSE (no FL)"
+    label = "Local-WMMSE"
 
     def solve(self, instance):
         from baselines.wmmse import local_wmmse

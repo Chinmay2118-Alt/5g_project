@@ -262,7 +262,9 @@ def figure_layers(results_dir, out_dir):
             if np.isnan(value):
                 continue
             color, _, _ = STYLE[name]
-            ax.axhline(value, color=color, linewidth=1.2, linestyle=(0, (4, 3)), label=f"{_label(name)} (converged)")
+            # Iterative methods are run to convergence; the heuristics are single-shot.
+            suffix = "" if name in ("rzf_equal", "mrt_equal") else " (converged)"
+            ax.axhline(value, color=color, linewidth=1.2, linestyle=(0, (4, 3)), label=f"{_label(name)}{suffix}")
             rows.append(["reference", name, value, width])
     ax.set_xticks(x_values)
     _save(fig, ax, out_dir, "G09_pf_vs_layers", ["x", "algorithm", "pf_utility", "ci95_half_width"], rows)
