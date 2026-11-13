@@ -140,18 +140,61 @@ as a determinism check.
 
 ---
 
-## Round 3 (recommended)
+## Round 3
 
-**Uploaded:** [date] — Revision 2 (`main.pdf`, commit `[hash]`)
+**Uploaded:** 13 November 2026 — Revision 2 (`main.pdf`, 13 pages, commit `af0d741`).
+**Full review text:** [`deepreview_round3.md`](deepreview_round3.md).
+
+The review again found every number consistent (it re-derived Table III in both orders, the dimension and byte
+counts, and the overhead arithmetic), and all 18 references real. No reported result was wrong. It asked for
+finer ablations and many precise definitions. Every factual claim it made about our implementation was checked
+against the code first; two were wrong (see 3.15, 3.16). New diagnostics (`diagnostics/round3.py`) ran on the
+exact drops of the final run, and re-scored the published RAP-FedWMMSE and untrained results exactly as a
+determinism check. **Two of them corrected claims in our paper and in the report for Sir (R3.3, R3.4).**
 
 ### Review comments received
 
-| # | Section / location | Comment |
-|---|---|---|
-| 3.1 | | |
-
-### Modifications made (→ final)
-
-| # | Addresses | What was changed | Required rerun? |
+| # | Section | Comment (summary) | Our check |
 |---|---|---|---|
-| R3.1 | 3.1 | | yes / no |
+| 3.1 | Weakness 1, VIII-B | The "slow timescale" step bundles τ adaptation, warmed-up prices and priced association; split it. | Valid. Split (R3.1). |
+| 3.2 | VIII-A | The uncoordinated baselines are held to τ = 0.5, which costs them about 3. | Correct (Fig. 7). |
+| 3.3 | Weakness 3, VIII-B/E | Measure what the QoS and robustness machinery costs at perfect CSI (pure-PF ablation). | Valid. Ran it (R3.3). |
+| 3.4 | VIII-E | Is the stale-CSI margin due to the outage surrogate? Is the slow timescale active in Fig. 8? Why is ρ = 0.99 far below perfect CSI? | Valid. Ran it (R3.4). Slow timescale **was** active (τ = 0.8). |
+| 3.5 | VIII-C | Is the steeper decline at K = 12 the fixed depth? ζ_f grows as O(RK²). | Valid. Ran it (R3.5). |
+| 3.6 | VIII-F | The default network was explained with the *small* network's learned parameters. | **Correct, our slip.** Measured the default network's (R3.6). |
+| 3.7 | VIII-G | Starvation: λ_reg not examined; is the warm-up active; single-factor ablation only. | Valid (R3.7). |
+| 3.8 | VI, VIII-G | Separate Step 1's association gap from the beam gap in Fig. 10; Section VI wording. | Valid. Ran SCIP with the association fixed (R3.8). |
+| 3.9 | III-C, IV | P_tot over-penalizes relay power by τ/(1 − τ); τ search is blind to energy. | Correct; stated (R3.9). |
+| 3.10 | III-B | No selection-DF fallback; multi-relay phase alignment comes from the ζ_f exchange. | Correct; stated. |
+| 3.11 | IV-A/B | Name the unconstrained problem (P0-PF); r_k(H) with beams fixed; ζ_f and ζ_s not counted in the fronthaul budget. | Correct; stated. |
+| 3.12 | V-D | One-layer envelope gradient vs. multi-layer backpropagation; mask before bisection; radial clipping; λ_reg inactive when μ = 0; Jacobi-type parallel step. | Correct. Code confirmed: masked before bisection, radial clipping with gradients. |
+| 3.13 | V-E, V-F, Alg. 1 | Price timing and detachment; ν side effects; user indices across drops; the warm-up does not redraw users. | Correct. Code confirmed: price updates use detached rates; J_b uses the layer-L prices. |
+| 3.14 | V-G | θ_rec and e_i update rules; the knapsack reduces to top-5; FL bytes up + down; signature statistics are global; adapter alignment; B_FL in bytes; 2-entry one-hot. | Correct. Code confirmed for each. |
+| 3.15 | Table II | "MRT 5th-percentile 0.20 may be a duplicate of RZF." | **Not correct**: MRT 0.1965, RZF 0.1959; both round to 0.20. |
+| 3.16 | Fig. 8 | Reads the ρ = 0.99 values as about 5.2–5.5 and 6.0. | **Misread**: they are 6.66 and 7.39. The underlying question (why below 7.88/9.88) is answered in R3.4. |
+| 3.17 | Minor | "Every method peaks at K = 8"; rounding 0.12 + 0.03 ≠ 0.16; Table III levels; noise PSD; Ī wording; backbone ReLU; φ for shares; link weights real; "nats"; masks in (9d); C = [c_mk]; b_r note; "python" prefix; Fig. 14 FedAvg not bound by B_FL; conclusion vs. the no-relay benchmark; Local-WMMSE called unregularized up front. | Correct (the K-peak sentence was wrong for Local and the heuristics). |
+
+### Modifications made (→ Revision 3)
+
+| # | Addresses | What was changed | Rerun? |
+|---|---|---|---|
+| R3.1 | 3.1 | New ablation `unfolded_wmmse_tau_only`. The slow-timescale gain is **all τ**: τ alone +3.40 ± 0.17, and priced association + prices + warm-up add **−0.002 ± 0.047** (outage 4.5% vs 4.6%). Abstract, VIII-B, Table III and the conclusion now say so. | New diagnostic |
+| R3.2 | 3.2 | VIII-A: at their best fixed τ = 0.8, Local-WMMSE reaches −0.31 and RZF 0.34; RAP still leads by +8.2 ± 0.4 and +7.5 ± 0.3 (from the saved τ sweep). Local-WMMSE is called "unregularized" in the abstract and VIII-A, with the Team MMSE caveat. | No (saved results) |
+| R3.3 | 3.3 | Pure-PF RAP-FedWMMSE (no outage term, no prices): 7.79 vs 7.88 (paired −0.09 ± 0.23, n.s.), outage 3.5% vs 4.0%. **The QoS machinery has no measurable effect** at perfect CSI. New paragraph in VIII-B, limitation (xii), report for Sir. | New diagnostic |
+| R3.4 | 3.4 | **Corrected our stale-CSI explanation.** (a) A default model trained *without* the outage term does as well zero-shot (+0.11, +0.04, +0.09 at ρ = 0.8, 0.85, 0.9, n.s.). (b) The **untrained** layers with the slow timescale beat the trained model (+0.39 ± 0.22, +0.40 ± 0.17, +0.21 ± 0.13) and the centralized method by more (+1.40, +1.18, +0.83). The advantage is a property of the damped distributed structure, not of learning or robust training. Rewrote VIII-E, the abstract, the Fig. 8 caption, limitation (viii), the conclusion, and finding 3 of the report for Sir (which had credited Step 10). Also stated that Fig. 8 runs the slow timescale, and why ρ = 0.99 is far below perfect CSI. | New diagnostics |
+| R3.5 | 3.5 | At K = 12, 100 untrained layers with the slow timescale reach 6.85 ± 0.56, +2.05 ± 0.23 above RAP-FedWMMSE and 1.17 ± 0.14 below centralized: the steeper decline is mainly the fixed depth. Added to VIII-C with the O(RK²) growth (4,320 values per block at K = 12 vs 304 for raw CSI); limitation (xiii). | New diagnostic |
+| R3.6 | 3.6 | Replaced the small-network numbers with the default network's learned parameters: AP step 1.18 (1.24–1.34 in layers 1–4, about 1.0 in 5–6), relaxation 0.59 (effective step 0.70), λ_reg 0.61. | New diagnostic |
+| R3.7 | 3.7 | λ_reg is lower on the starved drops (0.35 vs 0.58), which matters because Q_i is a scalar when N = 1. The untrained layers *with* the warm-up starve 4 drops (vs 3), so the prices alone do not cause it. Starvation comes from the learned parameters together. | New diagnostic (+ saved probe) |
+| R3.8 | 3.8 | SCIP with the association fixed to Step 1 (88 certified, 12 at the time limit): Step 1 costs 0.243 on average (more than 0.01 on 29 drops). Gaps to this bound: centralized 0.105, untrained 0.555, RAP 0.877. About a fifth of RAP's gap is the relay choice. Section VI wording fixed. | New SCIP run |
+| R3.9 | 3.9–3.14 | Stated: the τ/(1 − τ) over-penalization; selection-DF not modeled; phase alignment via ζ_f; P0-PF; r_k(H) with fixed beams; ζ_f/ζ_s outside the fronthaul budget (and that ζ_f would exceed 10 Mbit/s over wires); envelope vs. full backpropagation; masking, clipping, λ_reg at μ = 0, Jacobi steps; price timing/detachment; ν side effects; unmatched user indices; warm-up without redraw; θ_rec/e_i rules; top-5 knapsack; up + down bytes; global signature statistics; independent adapter initialization. | No |
+| R3.10 | 3.17 | All minor items fixed, including the K-peak sentence, the 0.157 = 0.124 + 0.033 s rounding, Table III intermediate levels, and −174 dBm/Hz in Table I. | No |
+
+### Comments not acted on
+
+| # | Comment | Why not |
+|---|---|---|
+| 3.3 (part) | Add the soft QoS penalty to the centralized benchmark. | The pure-PF ablation (R3.3) answered the underlying question: the penalty has no measurable effect. |
+| 3.4 (part) | A diagonally loaded (statistically robust) centralized benchmark. | A new baseline beyond Sir's list; the finding (R3.4) is now that even untrained layers beat the certainty-equivalent one, which we state with that caveat. |
+| 3.9 | Use the τ-weighted energy in the objective. | It would change Sir's objective and require rerunning the energy study; we report the time-averaged power and state the bias. |
+| 3.10 | Evaluate selection DF. | A change to the system model; stated as a limitation of assumption (iii). |
+| Weakness 2 | Limited-data / detached-gradient FL. | By the team's decision we did not chase the federation verdict; stated as future work. |

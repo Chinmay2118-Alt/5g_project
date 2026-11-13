@@ -14,3 +14,7 @@ paper/*.aux
 paper/*.log
 paper/*.out
 paper/Overleaf_Source.zip
+guide/*.aux
+guide/*.log
+guide/*.out
+guide/*.toc

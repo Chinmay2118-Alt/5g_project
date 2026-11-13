@@ -59,15 +59,20 @@ Times are from one clean run: every method on the same 10 drops, one process, on
    credited the whole +4.0 to learning):
    - exchanging ζ between nodes (untrained layers against Local-WMMSE): **+7.3**;
    - the learned layer parameters: **+0.6 to +0.9**, depending on whether Steps 1–2 are already on;
-   - the slow timescale of Steps 1–2 (τ adaptation, priced association, warm-up): **+3.1 to +3.4**.
+   - the slow timescale of Steps 1–2: **+3.1 to +3.4**, all of it from Step 2's τ adaptation; Step 1's
+     QoS-priced association and the warmed-up prices add nothing measurable (−0.002 ± 0.047).
 
    So the learning helps, but modestly. Most of the gain comes from the coordination and from Steps 1–2.
    100 untrained layers even beat 6 trained ones: what the learning buys is fewer layers. Undamped classical
    WMMSE is much worse than our untrained baseline, because all nodes update in parallel and it oscillates.
-3. **The robust training of Step 10 pays off under stale CSI (G08).** RAP-FedWMMSE significantly beats the
-   centralized method for ρ ≤ 0.9, by +1.01 ± 0.40 at ρ = 0.8. This comparison favors our method: it is retrained
-   at each ρ with the matching error model, while the centralized method treats the stale estimate as exact.
-   A single model trained once (ρ = 0.98) and never retrained still beats it at ρ = 0.8, 0.85 and 0.9.
+3. **Under stale CSI, RAP-FedWMMSE beats the centralized method (G08)** for ρ ≤ 0.9, by +1.01 ± 0.40 at
+   ρ = 0.8. A single model trained once, never retrained, also beats it. **Correction to our earlier draft:**
+   this is *not* due to the robust training of Step 10, nor to the learning.
+   - A model trained without the outage term does as well.
+   - The untrained layers do even better (+0.4 over the trained model at ρ = 0.8).
+
+   The advantage comes from the method's structure: a few damped distributed WMMSE steps are less sensitive
+   to channel errors than a converged centralized solution, which treats the stale estimate as exact.
 4. **The energy term works (G13).** With λ_E = 0.1, RAP-FedWMMSE uses 22% less power (23.9 → 18.7 W) for a PF loss of
    0.14. Weighted by how long each node actually transmits (time-averaged power), relay-assisted operation uses
    *less* energy than the no-relay network (17.4 W against 20.9 W).
@@ -91,6 +96,10 @@ Times are from one clean run: every method on the same 10 drops, one process, on
   participation drops sharply, while utility hardly changes (G14).
 - **On the small single-antenna network, trained RAP-FedWMMSE is worse than untrained:** 1.12 against 0.80 below
   the bound. On 14 of 100 drops it nearly starves one UE. This does not happen on the default network.
+- **The QoS machinery (Steps 9–10) has no measurable effect.** Trained as a pure PF optimizer (no outage
+  term, no prices), RAP-FedWMMSE reaches 7.79 against 7.88 (within noise), with an outage of 3.5% against 4.0%.
+- **Six layers are too few at higher load.** At 12 UEs, 100 untrained layers reach 6.85 against 4.80 for
+  RAP-FedWMMSE.
 - **Cooperative relaying (L_max = 2) slightly lowers PF utility (G06),** because every assisting relay must decode
   the stream.
 - **Signalling:** ζ per unfolded layer (352 complex values) exceeds the raw CSI (224) at our antenna counts.
@@ -112,8 +121,9 @@ Times are from one clean run: every method on the same 10 drops, one process, on
 6. **Fronthaul:** the limit restricts FL traffic only. User data is not throttled, and an AP whose user data
    alone exceeds F_max is reported as overloaded.
 
-We also checked the paper with Google Deep Review. Its first round found the attribution error corrected in
-finding 2 above, and asked for missing definitions and assumptions, which the revised paper now states.
+We also checked the paper with Google Deep Review in three rounds. None found a wrong number. Round 1 found the
+attribution error corrected in finding 2. Rounds 2 and 3 asked for further ablations, which showed what is
+corrected in findings 2 and 3 and listed above. The full log is in `paper/REVISION_LOG.md`.
 
 ## Assumptions
 

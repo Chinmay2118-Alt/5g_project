@@ -90,14 +90,16 @@ event-triggered, compressed, personalized federated exchange shares model
 updates under fronthaul limits. Over 14 experiments of 100 user drops on 10
 deployments, with a certified global bound from spatial branch-and-bound on a
 small network, RAP-FedWMMSE reaches 76\% of the centralized benchmark's mean
-rate and gains $+11.3$ proportional-fair (PF) utility over uncoordinated
-Local-WMMSE. Paired ablations attribute $+7.3$ of this to the coordination
-exchanged between nodes at every layer, about $+3.1$ to $+3.4$ to
-slow-timescale phase-split and association adaptation, and only $+0.6$ to
-$+0.9$ to the learned layer parameters. With robust training, the method
-overtakes the certainty-equivalent centralized relay-assisted benchmark under
-stale CSI, and it saves 22\% power (19\% time-averaged) for a 0.14 utility
-loss. Federated
+rate and gains $+11.3$ proportional-fair (PF) utility over uncoordinated,
+unregularized Local-WMMSE. Paired ablations attribute $+7.3$ of this to the coordination
+exchanged between nodes at every layer, about $+3.1$ to $+3.4$ to the
+slow-timescale phase-split adaptation (the priced relay association adds
+nothing measurable), and only $+0.6$ to
+$+0.9$ to the learned layer parameters. Under stale CSI the method overtakes
+the certainty-equivalent centralized relay-assisted benchmark, but the
+untrained layers do so by more: this robustness comes from the damped
+distributed structure, not from the learning or the robust training. The
+method saves 22\% power (19\% time-averaged) for a 0.14 utility loss. Federated
 aggregation brings no measurable utility gain in our setting: training
 without it matches both federated schemes, of which the personalized one uses
 45\% less communication than FedAvg.
@@ -214,8 +216,8 @@ cluster of its $L_c$ strongest APs, encoded by $c_{mk}\in\{0,1\}$ with
 $\sum_m c_{mk}=L_c$, and may be assisted by relays through the binary
 association $a_{rk}\in\{0,1\}$ with $\sum_r a_{rk}\le L_{\max}$ and
 $\sum_k a_{rk}\le C_r^{\max}$. We write $\mathbf{W}=\{\mathbf{w}_{mk}\}$,
-$\mathbf{V}=\{\mathbf{v}_{rk}\}$, $\mathbf{U}=\{\mathbf{u}_{rk}\}$ and
-$\mathbf{A}=[a_{rk}]$.
+$\mathbf{V}=\{\mathbf{v}_{rk}\}$, $\mathbf{U}=\{\mathbf{u}_{rk}\}$,
+$\mathbf{C}=[c_{mk}]$ and $\mathbf{A}=[a_{rk}]$.
 
 Channels are $\mathbf{h}_{mk}\in\C^{N_A}$ (AP $m$ to UE $k$),
 $\mathbf{G}_{mr}\in\C^{N_R\times N_A}$ (AP $m$ to relay $r$) and
@@ -271,8 +273,15 @@ are an upper bound for it;
 (iii)~every assigned relay must decode the full message, with no rate
 splitting or relay muting, so the $\min$ in \eqref{eq:dfrate} runs over all
 assisting relays. Under (iii), assigning a relay whose hop is weaker than the
-UE's direct link lowers $r_k$; this matters for the cooperation results in
-Section~\ref{sec:coop}.
+UE's direct link lowers $r_k$, and the UE cannot fall back to decoding the
+Phase~I signal alone within the epoch, because $a_{rk}$ is fixed for the
+epoch. A selection-DF rate,
+$\max\{\tau\log_2(1+\gamma_k^{(1)}),\,r_k\}$, would remove this loss; we did
+not evaluate it. This matters for the cooperation results in
+Section~\ref{sec:coop}. Coherent Phase~II combining for $L_{\max}>1$ also
+needs per-block phase alignment between relays. RAP-FedWMMSE obtains it
+through the $\zf$ exchange of Section~\ref{sec:fast}, and the centralized
+benchmark from its full CSI.
 
 \subsection{Power}
 Beam norms are per-phase transmit powers: $\sum_k\norm{\mathbf{w}_{mk}}^2$ is
@@ -298,14 +307,20 @@ unit-length block is instead
 \norm{\mathbf{v}_{rk}}^2 + P^c_R\Bigr),
 \label{eq:pavg}
 \end{multline}
-which we report alongside $P_{\mathrm{tot}}$ in the energy results.
+which we report alongside $P_{\mathrm{tot}}$ in the energy results. Circuit
+powers are not weighted, because nodes draw them for the whole block; $b_r$
+matters only for the circuit term, since $\mathbf{v}_{rk}=\mathbf{0}$ anyway
+when $a_{rk}=0$. Relative to the true block energy \eqref{eq:pavg},
+penalizing $P_{\mathrm{tot}}$ weights relay transmit power
+$\tau/(1-\tau)$ times more heavily than AP transmit power, i.e.\ $4\times$
+at $\tau=0.8$, so the energy term somewhat over-penalizes relay forwarding.
 
 \section{Problem Formulation}\label{sec:problem}
 \subsection{Per-block design problem}
-With PF weights $\omega_k=1$, a rate floor $\epsilon_0$ (in bit/s/Hz), the
-natural logarithm (so the utility is in nats), energy price $\lambda_E$ and
-QoS target $R^{\min}$ with outage tolerance $\epsilon_k$, the design problem
-for one coherence block is
+With PF weights $\omega_k=1$, a rate floor $\epsilon_0$ (in bit/s/Hz), a
+natural logarithm (we quote the resulting log-rate utility ``in nats'' only
+to name its base), energy price $\lambda_E$ and QoS target $R^{\min}$ with
+outage tolerance $\epsilon_k$, the design problem for one coherence block is
 \begin{subequations}\label{eq:P0}
 \begin{align}
 \textbf{P0:}\quad
@@ -317,28 +332,32 @@ for one coherence block is
 & \textstyle\sum_k \norm{\mathbf{v}_{rk}}^2 \le P^{\max}_r, \\
 & \norm{\mathbf{u}_{rk}} = 1 \text{ if } a_{rk}=1,
   \quad a_{rk}\in\{0,1\}, \\
+& \mathbf{w}_{mk}=\mathbf{0} \text{ if } c_{mk}=0, \\
+& \mathbf{v}_{rk}=\mathbf{0} \text{ if } a_{rk}=0, \\
 & \textstyle\sum_r a_{rk} \le L_{\max},\ \textstyle\sum_k a_{rk} \le
   C_r^{\max}, \\
-& \Pr_{\mathbf{H}\mid\hat{\mathbf{H}}}\{ r_k < R^{\min} \} \le \epsilon_k
-  \quad \forall k, \label{eq:qos}\\
+& \Pr_{\mathbf{H}\mid\hat{\mathbf{H}}}\{ r_k(\mathbf{H}) < R^{\min} \}
+  \le \epsilon_k \quad \forall k, \label{eq:qos}\\
 & \tau \in [\tau_{\min}, \tau_{\max}],
 \end{align}
 \end{subequations}
-together with the cluster and association masks on $\mathbf{w}_{mk}$ and
-$\mathbf{v}_{rk}$. The objective is evaluated on the estimate
-$\hat{\mathbf{H}}$ (certainty equivalence), while the probability in
-\eqref{eq:qos} is over the true channel given that estimate, under the error
-model of Section~\ref{sec:robust}; with perfect CSI it reduces to
-$r_k\ge R^{\min}$. $\mathbf{A}$ and $\tau$ appear in P0 for completeness, but
+The objective is evaluated on the estimate $\hat{\mathbf{H}}$ (certainty
+equivalence). In \eqref{eq:qos}, $r_k(\mathbf{H})$ is the rate on the true
+channel of the beams and combiners chosen from $\hat{\mathbf{H}}$, which are
+not re-optimized; the probability is over $\mathbf{H}$ given $\hat{\mathbf{H}}$,
+under the error model of Section~\ref{sec:robust}. With perfect CSI it
+reduces to $r_k\ge R^{\min}$. We call P0 without \eqref{eq:qos}
+\textbf{P0-PF}. $\mathbf{A}$ and $\tau$ appear in P0 for completeness, but
 in RAP-FedWMMSE they are slow variables fixed for a whole epoch from
 large-scale statistics (Section~\ref{sec:slow}).
 The outage values we \emph{report} are the empirical fraction of users below
 $R^{\min}$ over all evaluated drops. P0 is a nonconvex MINLP: the rates are
 nonconvex in the beams, $r_k$ contains a $\min$, $\mathbf{A}$ is binary, and
 $\tau$ multiplies the capacities. The methods do not solve exactly the same
-problem. The optimization baselines, including the exact MINLP, maximize the
-unconstrained PF utility, i.e.\ P0 without \eqref{eq:qos}, which can be
-infeasible under heavy blockage, and they only report outage. RAP-FedWMMSE
+problem. The optimization baselines, including the exact MINLP, solve
+P0-PF (P0 with \eqref{eq:qos} can be infeasible under heavy blockage), and
+they only report outage. The centralized benchmark also optimizes $\tau$ per
+block. RAP-FedWMMSE
 solves a QoS-penalized relaxation: dual prices and an outage surrogate push
 weak users towards $R^{\min}$, and the prices also make relay association
 easier for those users. It may therefore give up some PF utility for lower
@@ -366,7 +385,12 @@ alone exceeds $F^{\max}_m$ is counted as \emph{overloaded} and sends no FL
 traffic, and the utility we report does not cap user rates by the fronthaul.
 This is a modeling choice that isolates the effect of fronthaul congestion on
 learning. If $F^{\max}_m$ were the AP's only link, an overloaded AP could not
-actually deliver those rates.
+actually deliver those rates. Neither the fast exchange $\zf$
+(Section~\ref{sec:fast}) nor the slow vector $\zs$ is counted in
+\eqref{eq:fronthaul}; we assume they are carried separately, for example
+measured over the air from precoded pilots. Over the wired links, $\zf$ alone
+would exceed the 10\,Mbit/s relay control link at millisecond coherence
+blocks.
 
 \section{Proposed Algorithm: RAP-FedWMMSE}
 RAP-FedWMMSE exchanges two different coordination quantities, which we keep
@@ -383,8 +407,8 @@ large-scale gain in dB. Each relay--UE pair gets three features in decades
 $\bar\beta^{AR}_{rk} = (10\log_{10}\sum_m c_{mk}\beta_{mr} - D_k)/10$ for the
 serving cluster's gain to the relay, and $\bar I_{rk} =
 (10\log_{10}\sum_m (1-c_{mk})\beta_{mr} - 10\log_{10}\sum_m
-c_{mk}\beta_{mr})/10$ for the other APs' gain at the relay ($-3$ if there is
-none). They use only large-scale gains, so the association needs no beams.
+c_{mk}\beta_{mr})/10$ for the other APs' gain at the relay ($-3$ decades,
+i.e.\ $-30$\,dB, if every AP serves the UE). They use only large-scale gains, so the association needs no beams.
 The score is
 $\Gamma_{rk} = \alpha_1\bar\beta^{RU}_{rk} + \alpha_2\bar\beta^{AR}_{rk}
 - \alpha_3\bar I_{rk} + \alpha_4\lambda^Q_k$ with
@@ -402,7 +426,9 @@ with zero prices; RAP-FedWMMSE also feeds in its own prices.
 $\tau$ is updated once per epoch by a 61-point grid search over
 $[\tau_{\min},\tau_{\max}]$ (step 0.01). The search maximizes the PF utility
 of \eqref{eq:obj}, averaged over the epoch's last training blocks, with the
-SINRs held at their measured values; it does not include the outage term. At
+SINRs held at their measured values. It does not include the prices or the
+outage term, so that $\tau$ follows the network's own objective; since a UE
+without a relay prefers $\tau=1$, it usually settles at $\tau_{\max}=0.8$. At
 fixed SINRs each capacity is affine in $\tau$, so each $r_k$ is concave and
 piecewise linear in $\tau$ and the PF utility is concave in $\tau$; the grid
 finds its maximum to within 0.01.
@@ -432,20 +458,23 @@ the topology, a separate model is trained from scratch for every network
 size, and no model is transferred between topologies.
 
 Each node's model has three parts. A role-specific \emph{adapter} (AP or
-relay; a two-layer ReLU network to 64 and then 32 units) and a linear
-\emph{head} stay local. The \emph{backbone} $\theta_i$ (three ReLU layers,
-$32\to64\to64\to32$; 8{,}352 parameters, 33.4\,kB in float32) is the only
-federated part. The head has $2L+1+K$ outputs. They give, for every layer, a
+relay; a two-layer network, 64 ReLU units then 32 linear outputs) and a
+linear \emph{head} stay local. The \emph{backbone} $\theta_i$
+($32\to64\to64\to32$, ReLU after the first two layers only; 8{,}352
+parameters, 33.4\,kB in float32) is the only federated part. All nodes start
+from one common backbone; adapters and heads are initialized independently,
+and their alignment with the shared backbone comes only from training,
+which we did not study separately. The head has $2L+1+K$ outputs. They give, for every layer, a
 step size $\eta^{(\ell)} = 2\,\mathrm{sigmoid}(\cdot)\in(0,2)$ and a
 relaxation $\delta^{(\ell)} = \mathrm{sigmoid}(\cdot)\in(0,1)$; a single
 regularization $\lambda_{\mathrm{reg}} = \mathrm{softplus}(\cdot)\ge0$ shared
-by all layers; and initial power shares $s_{ik}$, through a softmax over the
-node's served streams. The head is initialized so that $\eta^{(\ell)}=1$,
+by all layers; and initial power shares $\varphi_{ik}$, through a softmax over
+the node's served streams. The head is initialized so that $\eta^{(\ell)}=1$,
 $\delta^{(\ell)}=0.5$, $\lambda_{\mathrm{reg}}=1$ and the shares are equal;
 training therefore starts exactly from the untrained ablation of
 Section~\ref{sec:baselines}.
 
-Initial beams are $\sqrt{s_{ik}P^{\max}_i}$ times a unit direction, so they
+Initial beams are $\sqrt{\varphi_{ik}P^{\max}_i}$ times a unit direction, so they
 use the full power budget even when $\lambda_E>0$. The directions are not
 learned. They are matched filters $\hat{\mathbf{h}}_{mk}/\norm{\cdot}$ and
 $\hat{\mathbf{g}}_{rk}/\norm{\cdot}$. For a relayed stream, the AP does not
@@ -470,8 +499,10 @@ $S^{(2)}_{kj} = \sum_r \mathbf{g}_{rk}\herm\mathbf{v}_{rj}$ and
 $S^{AR}_{rkj} = \mathbf{u}_{rk}\herm\mathbf{f}_{rj}$; the MMSE equalizers
 $c^{(1)}_k, c^{(2)}_k, c^{AR}_{rk}$; the link weights
 $A^{(1)}_k, A^{(2)}_k, A^{AR}_{rk}$; and the relay combiners
-$\mathbf{u}_{rk}$. This is $2K^2+4K+R(K^2+2K+KN_R)$ complex values, 352 at
-the default size.
+$\mathbf{u}_{rk}$. This is $2K^2+4K+R(K^2+2K+KN_R)$ values, 352 at the
+default size, counted as complex although the $2K+RK$ link weights are real
+(a conservative count). It grows as $O(RK^2)$ per layer: at $K=12$ it is 720
+per layer, 4{,}320 per block, against 304 for all raw CSI.
 
 At the start of every layer these quantities are recomputed from the current
 beams. The relay combiner is the normalized MMSE filter
@@ -511,9 +542,13 @@ S^{(1)}_{kj} - \delta_{jk}c^{(1)}_k\bigr)\mathbf{h}_{mk}
 \label{eq:Q}
 \end{multline}
 Relay $r$ has the same form with $\mathbf{g}_{rk}$, the Phase~II quantities
-$A^{(2)}, c^{(2)}, S^{(2)}$, and $\lambda_E/\eta_R$. A unit test confirms
-that \eqref{eq:grad} equals the autograd gradient of the global loss to
-machine precision.
+$A^{(2)}, c^{(2)}, S^{(2)}$, and $\lambda_E/\eta_R$. Equation
+\eqref{eq:grad} is the gradient of the loss \emph{within one layer}, with the
+equalizers, weights and combiners held at their MMSE values; by the envelope
+theorem this equals the full gradient at that point, and a unit test confirms
+it against autograd to machine precision. Training differentiates through the
+\emph{whole} unfolded graph instead, including how
+$\mathbf{u}_{rk}$, $c_k$ and $\rho_k$ change from layer to layer.
 
 \textbf{Update.} Writing node $i$'s beams as a matrix $\mathbf{W}_i$ with one
 column per stream,
@@ -523,15 +558,21 @@ column per stream,
 \label{eq:layer}
 \end{equation}
 with $\mathbf{B}_i = \mathbf{Q}_i\mathbf{W}_i - \nabla_{\mathbf{W}_i^{*}}
-\Loss$. Here $\lambda = \lambda_{\mathrm{reg}}\mu_i$, and $\mu_i$ is the
-classical WMMSE power price: the smallest $\mu\ge0$ with
+\Loss$; the gradient and $\mathbf{W}_i$ are masked to the node's served
+streams first, so unserved columns of $\mathbf{B}_i$ are zero. Here
+$\lambda = \lambda_{\mathrm{reg}}\mu_i$, and $\mu_i$ is the classical WMMSE
+power price: the smallest $\mu\ge0$ with
 $\norm{(\mathbf{Q}_i+\mu\mathbf{I})^{-1}\mathbf{B}_i}_F^2\le P^{\max}_i$,
 found by bisection and treated as a constant in backpropagation. When
-$\lambda_E>0$, the energy term is already inside $\mathbf{Q}_i$. The step is
+$\lambda_E>0$, the energy term is already inside $\mathbf{Q}_i$. Because
+$\lambda_{\mathrm{reg}}$ multiplies $\mu_i$, it has no effect when the power
+limit is slack ($\mu_i=0$). The step is
 followed by the relaxation $\mathbf{W}_i^{(\ell+1)} =
 (1-\delta^{(\ell)})\mathbf{W}_i^{(\ell)} + \delta^{(\ell)}
-\widetilde{\mathbf{W}}_i$, the cluster or association mask, and a scaling
-onto the power budget. This scaling is needed because, when
+\widetilde{\mathbf{W}}_i$, the cluster or association mask, and a radial
+clipping $\mathbf{W}_i\leftarrow\mathbf{W}_i\min\bigl(1,\sqrt{P^{\max}_i}/
+\norm{\mathbf{W}_i}_F\bigr)$, which never raises the power (gradients flow
+through it). The clipping is needed because, when
 $\eta^{(\ell)}\ne1$ or $\lambda_{\mathrm{reg}}\ne1$, the step can exceed the
 budget. Since nothing nonlinear happens between \eqref{eq:layer} and the
 relaxation, $\eta^{(\ell)}$ and $\delta^{(\ell)}$ act only through their
@@ -543,8 +584,10 @@ checks this against an independent implementation). A diagonal load of
 $10^{-10}\,\mathrm{tr}(\mathbf{Q}_i)/N_i$, with $N_i\in\{N_A,N_R\}$ the
 node's antenna count, keeps the solve defined when $\mathbf{Q}_i$ is
 rank-deficient. A node with $\mathbf{Q}_i=\mathbf{0}$ keeps its beams. All
-nodes update in parallel from the same $\zf^{(\ell)}$, so a block costs $L$
-sequential exchanges of $\zf$. We assume the exchange is delivered (for
+nodes update in parallel from the same $\zf^{(\ell)}$, a Jacobi-type
+best-response step; when several APs serve the same UE, such simultaneous
+steps can overshoot, which is why relaxation matters
+(Section~\ref{sec:decomp}). A block costs $L$ sequential exchanges of $\zf$. We assume the exchange is delivered (for
 example, measured from precoded pilots); its latency and overhead are
 \emph{not} modeled in our timings or fronthaul budget.
 
@@ -574,9 +617,16 @@ The prices live on two timescales. In every block, the layers start from the
 slow prices in $\zs(t)$ and update them after each layer as
 $\lambda^Q_k \leftarrow [\lambda^Q_k + \eta_Q (R^{\min}-r^\kappa_k)]_+$ and
 $\nu_{rk} \leftarrow [\nu_{rk} + \eta_D (C^D_k - C^{AR}_{rk})]_+$, with
-$\eta_Q=\eta_D=0.2$ and rates taken from that layer's $\zf$. These in-layer
-prices are discarded after the block. Once per epoch, the slow prices ascend
-with step 0.5 using the epoch-average rates.
+$\eta_Q=\eta_D=0.2$ and rates taken from that layer's $\zf$, i.e.\ measured
+before that layer's beam update. The updates use detached rates, so no
+gradient flows through the prices and the stop-gradient on $C^D_k$ is not
+bypassed. The loss $J_b$ in \eqref{eq:loss} uses the prices after layer $L$.
+These in-layer prices are discarded after the block. Once per epoch, the slow
+prices ascend with step 0.5 using the epoch-average rates. Two side effects
+are worth noting. A positive $\nu_{rk}$ raises UE $k$'s relay-hop weight
+relative to other UEs that share the same APs. With $L_{\max}>1$, $\nu_{rk}$
+rises for every assisting relay whose hop is below $C^D_k$, not only the
+binding one.
 
 The training loss for a batch of blocks is
 \begin{equation}
@@ -609,8 +659,10 @@ only through a synchronous backward exchange of $\zf$ at every layer and
 local step; that traffic is not counted in \eqref{eq:fronthaul}. This
 coupling applies to every variant, including the no-FL ablation.
 (ii)~During training, $\zs(t)$, including the slow prices, is carried from
-one epoch to the next although each epoch draws new users, so it acts as a
-warm start rather than a per-user quantity. At deployment, $\zs$ is reset for
+one epoch to the next although each epoch draws new users. User indices are
+not matched between drops, so the carried values belong to different users;
+they act as a warm start rather than a per-user quantity. At deployment,
+$\zs$ is reset for
 every drop and rebuilt by 3 warm-up epochs of 4 blocks on that drop's
 statistics.
 
@@ -639,8 +691,11 @@ and keeps the error
 $\mathbf{e}_i\leftarrow\Delta\theta_i+\mathbf{e}_i-\mathrm{Top}_k(\cdot)$.
 The upload $S^{\uparrow}$ (836 values, each with a 4-byte value and a 4-byte
 index, plus the signature) is 6{,}736\,B. The dense download $S^{\downarrow}$
-is 33{,}408\,B, so $B_{\mathrm{FL}}=40$\,kB admits at most five uploads per
-epoch.
+is 33{,}408\,B; it is counted as dense, an upper bound since the mix of at
+most five sparse uploads is itself sparse. As $B_{\mathrm{FL}}=40{,}000$\,B
+admits at most five uploads and every upload has the same size, the knapsack
+reduces to choosing the five most urgent eligible nodes. The FL byte counts
+we report include both uploads and downloads.
 
 The signature $\mathbf{s}_i$ has $K+4$ entries:
 \begin{itemize}
@@ -651,8 +706,11 @@ The signature $\mathbf{s}_i$ has $K+4$ entries:
     both are averaged and in the $\log_{10}$ form of $\zs$;
   \item its load: for an AP, the fraction of UEs it serves; for a relay, its
     streams divided by $C_r^{\max}$;
-  \item a one-hot role.
+  \item a two-entry one-hot role (AP or relay).
 \end{itemize}
+The standardization uses statistics over all nodes' large-scale gains. These
+change slowly and would have to be broadcast; in simulation they are
+computed globally.
 
 Node $i$ receives
 $\Delta\bar\theta_i = \sum_{j\in\mathcal{S}} \alpha_{ij}\,
@@ -661,10 +719,15 @@ $\mathcal{S}$, with $\alpha_{ij} = S_{ij}p_j/\sum_{l\in\mathcal{S}}
 S_{il}p_l$. Here $S_{ij} = \kappa_{o(i)o(j)}
 \exp(-\norm{\mathbf{s}_i-\mathbf{s}_j}^2/2\sigma^2)$, where $o(i)$ is node
 $i$'s role, with $\sigma=1$, role weights $\kappa_{AA}=\kappa_{RR}=1$ and
-$\kappa_{AR}=0.3$, and $p_j=1$. Node $i$ applies
-$\theta_i \leftarrow \theta_i + \rho_p \Delta\bar\theta_i$ with
-$\rho_p=0.5$. Every node whose link has room for the download receives its
-personalized update. Algorithm~\ref{alg:rap} summarizes the method.
+$\kappa_{AR}=0.3$, and $p_j=1$. With $\rho_p=0.5$, a selected node sets
+$\theta_i\leftarrow\theta_i^{\mathrm{rec}}+\rho_p\Delta\bar\theta_i$ and
+$\theta_i^{\mathrm{rec}}\leftarrow\theta_i$. Its own progress then enters
+only through its share of $\Delta\bar\theta_i$, and the unsent part stays
+in $\mathbf{e}_i$, so it is not counted twice. A node that was not selected
+but whose link has room for the download keeps its pending progress:
+$\theta_i\leftarrow\theta_i+\rho_p\Delta\bar\theta_i$ and
+$\theta_i^{\mathrm{rec}}\leftarrow\theta_i^{\mathrm{rec}}+\rho_p
+\Delta\bar\theta_i$. Algorithm~\ref{alg:rap} summarizes the method.
 
 \begin{algorithm}[t]
 \caption{RAP-FedWMMSE}
@@ -692,7 +755,8 @@ personalized update. Algorithm~\ref{alg:rap} summarizes the method.
          download (Steps 12--15)
 \EndFor
 \Statex \textbf{Deployment (per drop):} reset $\zs$; run 3 warm-up epochs
-(lines 3, 5--9, 12--13 on 4 sampled blocks each, with no Adam step and no FL)
+on the fixed test drop (lines 3 without a new drop, 5--9 and 12--13, on 4
+sampled blocks each, with no Adam step and no FL)
 to set $\mathbf{A},\tau,\zs$; then every block runs the $L$ layers with one
 $\zf^{(\ell)}$ exchange per layer.
 \end{algorithmic}
@@ -752,8 +816,9 @@ combiner or $\tau$ rule; it does not cap rates by the fronthaul.
     \cite{bestuzheva2021scip} optimizes beams, combiners and the binary
     association jointly at fixed $\tau=0.5$. It certifies a global upper bound
     to a 1\% gap (300\,s limit). In this experiment \emph{every} method is held
-    to $\tau=0.5$ and none adapts its association. The bound covers every
-    association at that $\tau$, so it bounds every method compared.
+    to $\tau=0.5$, and all methods other than SCIP use the zero-price Step~1
+    association; SCIP searches all associations. Its bound therefore covers
+    every association at that $\tau$, and bounds every method compared.
 \end{itemize}
 
 \section{Experimental Setup}
@@ -783,10 +848,10 @@ Cluster / relay capacity & $L_c = 4$, $C_r^{\max}=4$, $L_{\max}=1$ \\
 Area & 500\,m square, minimum distance 10\,m \\
 Path loss (UMi NLOS) & $-30.5 - 36.7\log_{10}(d/1\,\mathrm{m})$\,dB \\
 Shadowing / blockage & 4\,dB; 2 of 8 UEs (25\%) blocked by 25\,dB \\
-Bandwidth, noise figure & 20\,MHz, 7\,dB \\
+Noise & $-174$\,dBm/Hz, 20\,MHz, NF 7\,dB \\
 Power & $P^{\max}_m=P^{\max}_r=1$\,W (30\,dBm) \\
 PA efficiency, circuit power & $\eta_A=\eta_R=0.4$, $P^c_A=P^c_R=0.2$\,W \\
-Utility & $\omega_k=1$ (nats), $\epsilon_0=10^{-3}$\,bit/s/Hz,
+Utility & $\omega_k=1$ (utility in nats), $\epsilon_0=10^{-3}$\,bit/s/Hz,
   $\lambda_E=0$ \\
 QoS & $R^{\min}=0.5$\,bit/s/Hz, $\epsilon_k = 0.1$ \\
 Phase split & $\tau\in[0.2,0.8]$; fixed baselines use $0.5$ \\
@@ -836,8 +901,8 @@ RZF / MRT, equal power & $-2.43$ / $-5.60$ & 1.13 / 0.58 & 0.20 / 0.20 &
 \bottomrule
 \multicolumn{6}{p{0.92\textwidth}}{\footnotesize $^{\dagger}$Mean over 10
 drops in one clean run: one process, one thread, idle machine, every method
-on the same drops. RAP-FedWMMSE's 0.16\,s per drop is 0.12\,s of warm-up and
-0.03\,s for the block itself. The communication delay of the $\zf$ exchanges
+on the same drops. RAP-FedWMMSE's 0.16\,s per drop (0.157\,s) is 0.124\,s of
+warm-up and 0.033\,s for the block itself. The communication delay of the $\zf$ exchanges
 is not included (Section~\ref{sec:runtime}).}
 \end{tabular}
 \end{table*}
@@ -855,14 +920,15 @@ Step added & Order A & Order B \\
 \midrule
 Coordination $\zf$ (first) & $+7.30\pm0.35$ & $+7.30\pm0.35$ \\
 Learned parameters & $+0.89\pm0.16$ & $+0.61\pm0.20$ \\
-Slow timescale ($\tau$, association) & $+3.12\pm0.27$ & $+3.40\pm0.17$ \\
+Slow timescale (all from $\tau$) & $+3.12\pm0.27$ & $+3.40\pm0.17$ \\
 \midrule
 Total vs.\ Local-WMMSE & $+11.31\pm0.43$ & $+11.31\pm0.43$ \\
 \bottomrule
 \multicolumn{3}{p{0.9\columnwidth}}{\footnotesize Order A adds the learning
 second, at $\tau=0.5$ (Fig.~\ref{fig:g09}, $L=6$); Order B adds the
-training-free slow timescale second, to the untrained layers. Drops won, by
-row: 100, 90, 99 (A); 100, 87, 100 (B).}
+training-free slow timescale second, to the untrained layers. PF levels:
+$-3.43\to3.87\to4.76\to7.88$ (A) and $-3.43\to3.87\to7.27\to7.88$ (B). Drops
+won, by row: 100, 90, 99 (A); 100, 87, 100 (B).}
 \end{tabular}
 \end{table}
 
@@ -872,7 +938,14 @@ Among the methods without central CSI, RAP-FedWMMSE ranks first. It beats
 uncoordinated Local-WMMSE by $+11.3\pm0.4$ PF utility and the best
 uncoordinated heuristic (RZF) by $+10.3\pm0.4$, on 100 of 100 drops each. It
 also beats the identical untrained layers by $+4.0\pm0.2$, on 99 of 100. It
-reaches 76\% of the centralized mean rate.
+reaches 76\% of the centralized mean rate. Part of the margin over the
+uncoordinated methods is $\tau$: they use the conventional $\tau=0.5$. At
+their best fixed $\tau$ (0.8, Fig.~\ref{fig:g07}), Local-WMMSE reaches
+$-0.31$ and RZF 0.34, and RAP-FedWMMSE still leads by $+8.2\pm0.4$ and
+$+7.5\pm0.3$. Local-WMMSE ignores the other nodes and has no statistical
+regularization, and it does worse than one-shot RZF; the margins over it
+overstate what coordination adds over a statistically coordinated local
+method such as Team MMSE~\cite{miretti2022team}.
 
 The rate CDF (Fig.~\ref{fig:g01}) shows who pays for each design. The
 no-relay benchmark has the best median (5.08, against 4.31 centralized and
@@ -892,7 +965,12 @@ these we split the $+11.3$ margin into three paired steps, in both orders.
   \item \textbf{Coordination.} The exchange of $\zf$ itself, which makes each
     node's update aware of the others, gives $+7.30$.
   \item \textbf{Slow timescale.} It gives $+3.1$ to $+3.4$; the median
-    adapted $\tau$ is 0.8, the upper limit.
+    adapted $\tau$ is 0.8, the upper limit. Splitting it further on the
+    untrained layers shows that it is \emph{all} $\tau$. The $\tau$ search
+    alone, with zero-price association and zero slow prices, gives
+    $+3.40\pm0.17$. Adding Step~1's priced association, the warmed-up prices
+    and the warm-up changes nothing ($-0.002\pm0.047$; outage 4.5\% against
+    4.6\%).
   \item \textbf{Learned parameters.} They give $+0.6$ to $+0.9$, depending on
     whether the slow timescale is already on.
 \end{itemize}
@@ -911,6 +989,14 @@ for 100 layers, the damped untrained layers reach $5.54\pm0.64$. That is
 $-0.77\pm0.39$) but still $1.80\pm0.42$ below centralized WMMSE at that
 $\tau$. What the learning buys is a shorter iteration, not a better end
 point.
+
+\textbf{The QoS machinery.} To measure what the QoS and robustness
+machinery of Steps~9--10 costs or gains, we retrained RAP-FedWMMSE on the
+default network as a pure PF optimizer: no outage term, and all prices held
+at zero. It reaches $7.79\pm0.51$ against $7.88\pm0.51$ (paired
+$-0.09\pm0.23$, not significant), with an outage of 3.5\% against 4.0\%. With
+perfect CSI, the QoS machinery therefore has no measurable effect, positive
+or negative, on either utility or outage at our default operating point.
 
 \begin{figure}[t]
 \centering
@@ -932,10 +1018,15 @@ percentile by $3\times$.}
 Across transmit powers from 10 to 30\,dBm (Fig.~\ref{fig:g03}), the ordering
 is stable. The 5th-percentile panel shows the relay methods turning extra
 power into tail rate much faster than the no-relay benchmark. Against the
-number of UEs (Fig.~\ref{fig:g04}), every method peaks at $K=8$ and declines
-as load grows. RAP-FedWMMSE declines faster than the centralized method
-($7.88\to4.80$ against $9.88\to8.02$ from $K=8$ to $12$), which we attribute
-to a fixed number of layers facing a harder interference problem.
+number of UEs (Fig.~\ref{fig:g04}), the WMMSE-based methods peak at $K=8$,
+while Local-WMMSE and the heuristics decline steadily from $K=4$.
+RAP-FedWMMSE declines faster than the centralized method beyond $K=8$
+($7.88\to4.80$ against $9.88\to8.02$ at $K=12$). The cause is mainly the
+fixed depth. At $K=12$, the untrained layers with the slow timescale reach
+$3.73$ with 6 layers but $6.85\pm0.56$ with 100, $+2.05\pm0.23$ above
+RAP-FedWMMSE and $1.17\pm0.14$ below centralized. Six layers are too few for
+the harder interference problem, and the learned steps do not make up for
+it. The per-layer exchange also grows as $O(RK^2)$.
 
 The blockage sweep (Fig.~\ref{fig:g05}) shows what relays are for. Without
 blockage, the no-relay benchmark is \emph{better} by 1.86, because it spends
@@ -1002,18 +1093,42 @@ same drops for every method).}
 Under channel aging $\mathbf{H} = \rho\hat{\mathbf{H}} +
 \sqrt{1-\rho^2}\,\mathbf{E}$, RAP-FedWMMSE overtakes the centralized
 relay-assisted benchmark for $\rho\le0.9$: by $+1.01\pm0.40$ at $\rho=0.8$,
-$+0.78$ at 0.85 and $+0.62$ at 0.9 (paired). The comparison is asymmetric by
-design. RAP-FedWMMSE is retrained at every $\rho$ with the matching error
+$+0.78$ at 0.85 and $+0.62$ at 0.9 (paired). In this sweep every method runs
+as in the main comparison, including RAP-FedWMMSE's slow timescale (median
+adapted $\tau=0.8$). Even at $\rho=0.99$, utility is clearly below the
+perfect-CSI values (6.66 and 7.39 against 7.88 and 9.88). An error of 2\% of
+each link's power ($-17$\,dB) leaves residual interference that limits SINRs
+in a high-SNR network, which hits the most aggressive interference
+suppression, the centralized method's, hardest. The comparison is asymmetric
+by design. RAP-FedWMMSE is retrained at every $\rho$ with the matching error
 model of Section~\ref{sec:robust}, while the centralized benchmark is
 certainty-equivalent. To check that the gain does not need a model matched to
 the true $\rho$, we also evaluated the default model, trained once with
 $\rho=0.98$, at every $\rho$ without retraining. It loses little to the
 matched models ($-0.33\pm0.25$ at $\rho=0.8$; between $-0.05$ and $-0.21$ at
 $\rho\ge0.85$). It still beats the centralized benchmark by $+0.69\pm0.44$,
-$+0.61\pm0.40$ and $+0.41\pm0.35$ at $\rho=0.8$, 0.85 and 0.9. The result
-shows the value of training with CSI-error samples. It does not show that
-the learned layers beat a robust centralized optimizer, which we did not
-implement.
+$+0.61\pm0.40$ and $+0.41\pm0.35$ at $\rho=0.8$, 0.85 and 0.9.
+
+\textbf{Where the advantage comes from.} Two further checks locate it, and
+they correct the explanation in our earlier drafts, which credited the robust
+training of Step~10.
+\begin{itemize}
+  \item \textbf{Not the outage training.} A default model trained
+    \emph{without} the CSI-error outage term ($\lambda_O=0$) does at least as
+    well zero-shot: $+0.11\pm0.25$, $+0.04\pm0.25$ and $+0.09\pm0.20$ over the
+    model trained with it at $\rho=0.8$, 0.85 and 0.9.
+  \item \textbf{Not the learning.} The \emph{untrained} layers with the slow
+    timescale do better still. They beat the trained model by
+    $+0.39\pm0.22$, $+0.40\pm0.17$ and $+0.21\pm0.13$, and the centralized
+    benchmark by $+1.40\pm0.42$, $+1.18\pm0.37$ and $+0.83\pm0.31$, at
+    $\rho=0.8$, 0.85 and 0.9.
+\end{itemize}
+The advantage under stale CSI is therefore a property of the method's
+structure: a few damped per-node WMMSE steps suppress interference less
+aggressively than a converged centralized solution, so they are less
+sensitive to its errors. The learned parameters, which take larger steps,
+slightly reduce it. None of this shows that the method would beat a robust
+centralized optimizer, which we did not implement.
 
 The no-relay benchmark stays above both in PF utility. Against it,
 RAP-FedWMMSE is lower by $0.29\pm0.54$, $0.48\pm0.49$ and $0.49\pm0.44$ at
@@ -1027,7 +1142,8 @@ against 24.1\% at 0.8, and 11.4\% against 15.1\% at 0.9).
 \includegraphics[width=\columnwidth]{G08_pf_vs_aging.png}
 \caption{PF utility against the aging coefficient $\rho$. RAP-FedWMMSE is
 retrained at each $\rho$ with the matching error model; the centralized
-benchmarks are certainty-equivalent.}
+benchmarks are certainty-equivalent. Its advantage at $\rho\le0.9$ is shared,
+and exceeded, by the untrained layers (Section~VIII-E).}
 \label{fig:g08}
 \end{figure}
 
@@ -1036,10 +1152,12 @@ With $\tau$ and association held fixed (Fig.~\ref{fig:g09}), the trained
 layers beat the identical untrained layers at every depth: by $+1.37$ at
 $L=1$, $+0.89\pm0.16$ at $L=6$ and $+0.64$ at $L=10$. Six trained layers
 roughly match ten untrained ones (4.76 against 4.74), but not one hundred
-(5.54, Section~\ref{sec:decomp}). The learned parameters mostly take larger
-steps: on the small network, their mean step is $\eta\approx1.25$ and the
-mean relaxation $\delta\approx0.62$, an effective step of about 0.78 against
-0.5 untrained. Their effect is modest and shrinks with depth. The larger
+(5.54, Section~\ref{sec:decomp}). On the default network, the learned
+parameters mostly take larger steps. The APs' mean step is $\eta=1.18$,
+largest in the first four layers (1.24--1.34) and about 1.0 in the last two.
+The mean relaxation is $\delta=0.59$, so the effective step is about 0.70
+against 0.5 untrained, and the regularization is $\lambda_{\mathrm{reg}}=0.61$
+against 1. Their effect is modest and shrinks with depth. The larger
 default-configuration margin of $+4.0$ over the untrained ablation is mostly
 the slow timescale (Table~\ref{tab:decomp}).
 
@@ -1075,6 +1193,16 @@ The mean gaps to the certified bound are:
 \end{itemize}
 No method exceeded the bound in 600 records.
 
+These gaps combine two parts: the beam optimization, and the relay choice of
+Step~1, which every method except SCIP uses. To separate them, we re-solved
+the same drops with SCIP holding the association at Step~1's choice (88
+drops certified to 1\%, 12 at the time limit). Step~1's association is
+optimal on most drops, but it costs 0.243 on average (more than 0.01 on 29
+drops, at most 2.16). Against this fixed-association bound, the gaps are
+centralized 0.105, untrained layers 0.555, RAP-FedWMMSE 0.877, Local-WMMSE
+1.400 and MRT 1.523, and no method exceeds it. So about a fifth of
+RAP-FedWMMSE's gap is the heuristic relay choice, and the rest is the beams.
+
 The centralized method's local optima are nearly global here, which supports
 its use as a benchmark. \emph{Trained} RAP-FedWMMSE, however, falls below its
 own untrained layers on this single-antenna network, and on 14 of 100 drops
@@ -1093,11 +1221,19 @@ one change at a time:
   \item retraining without the QoS machinery (no outage term, no prices):
     they fall to 12 (gap 1.059).
 \end{itemize}
-The parameters the model predicts on the starved drops are close to those on
-the other drops: mean step 1.25 against 1.24, and similar shares. The
-starvation therefore has no single trigger. Larger learned steps are the main
-contributor, and the learned shares and the QoS prices add to it; none of the
-three removes it. The effect does not occur on the default network, and we
+The untrained layers with the warm-up and its prices starve 4 drops, about
+the same as without it (3), so the prices alone do not cause it.
+
+The predicted steps and shares on the starved drops are close to those on the
+other drops (mean step 1.25 against 1.24). The learned regularization,
+however, is lower there: $\lambda_{\mathrm{reg}}=0.35$ against 0.58. With
+$N_A=N_R=1$, $\mathbf{Q}_i$ is a scalar shared by all of a node's streams,
+so the regularization only scales the whole step, and a small
+$\lambda_{\mathrm{reg}}$ pushes the step past the power budget, after which
+it is clipped. The starvation therefore has no single trigger. It comes from
+the learned parameters together: larger steps, lower regularization and the
+learned shares, with the QoS prices adding to it. None of the three single
+changes removes it. The effect does not occur on the default network, and we
 report it as a limitation rather than tune it away.
 
 \begin{figure}[t]
@@ -1111,10 +1247,10 @@ report it as a limitation rather than tune it away.
 \subsection{Runtime (Fig.~\ref{fig:g11})}\label{sec:runtime}
 \textbf{Clean measurement.} The times in Table~\ref{tab:main} come from one
 clean run, with all methods on the same 10 drops, one after another, in one
-process with one thread on an idle machine. RAP-FedWMMSE takes 0.16\,s per
-drop. Of this, 0.12\,s is the warm-up, which sets $\tau$, the association
+process with one thread on an idle machine. RAP-FedWMMSE takes 0.157\,s per
+drop. Of this, 0.124\,s is the warm-up, which sets $\tau$, the association
 and $\zs$ once per drop and would be amortized over many blocks in
-continuous operation; the block itself takes 0.03\,s, as fast as the
+continuous operation; the block itself takes 0.033\,s, as fast as the
 untrained layers. Centralized WMMSE takes 5.05\,s, and 100 closed-form layers
 of the same unfolded update take 0.47\,s.
 
@@ -1191,9 +1327,10 @@ and a negative result}
 Fig.~\ref{fig:g14} enforces \eqref{eq:fronthaul} on the FL traffic while
 sweeping the AP fronthaul capacity. At 100\,Mbit/s, an average of 7.1 of 8
 APs are overloaded by user data alone, and FL participation falls to 2.8 of
-10 nodes per epoch. FedAvg reaches full participation only at 1\,Gbit/s,
-while the personalized scheme is capped at five uploads per epoch by
-$B_{\mathrm{FL}}$. As stated in Section~\ref{sec:problem}, the overloaded APs' user rates are
+10 nodes per epoch. FedAvg, which is limited only by each node's headroom
+and not by $B_{\mathrm{FL}}$, reaches full participation only at
+1\,Gbit/s, while the personalized scheme is capped at five uploads per epoch
+by $B_{\mathrm{FL}}$. As stated in Section~\ref{sec:problem}, the overloaded APs' user rates are
 not reduced, so Fig.~\ref{fig:g14}(a) shows the effect of the constraint on
 learning only.
 
@@ -1220,7 +1357,9 @@ experiment and leave it as future work.
 \includegraphics[width=0.85\textwidth]{G14_fronthaul.png}
 \caption{Federation under the fronthaul constraint \eqref{eq:fronthaul}: (a)
 PF utility and (b) FL participation and overloaded APs against per-AP
-fronthaul capacity.}
+fronthaul capacity. FedAvg is limited only by each node's headroom, not by
+the upload budget $B_{\mathrm{FL}}$, which caps the personalized scheme at
+five uploads.}
 \label{fig:g14}
 \end{figure*}
 
@@ -1243,8 +1382,9 @@ fronthaul capacity.}
     report the time average beside it.
   \item[(vii)] Training carries $\zs$ across UE drops.
   \item[(viii)] The aging comparison uses a certainty-equivalent centralized
-    benchmark (a single default model also beats it); no robust centralized
-    or Team MMSE baseline was implemented.
+    benchmark, and the advantage there comes from the damped structure, not
+    from learning or robust training; no robust centralized or Team MMSE
+    baseline was implemented.
   \item[(ix)] CSI acquisition is not modeled; each drop is one coherence
     block; antenna counts are small.
   \item[(x)] Runtimes are indicative only, to an order of magnitude.
@@ -1253,7 +1393,11 @@ fronthaul capacity.}
     scratch. Architectures that accept any graph size, such as graph neural
     networks, would remove this.
   \item[(xii)] RAP-FedWMMSE optimizes a QoS-penalized objective, while the
-    baselines and the bound optimize pure PF utility.
+    baselines and the bound optimize pure PF utility. Its QoS machinery
+    (Steps~9--10) and the priced association had no measurable effect in our
+    tests.
+  \item[(xiii)] Six layers are too few at higher load ($K=12$), where 100
+    untrained layers do much better.
 \end{enumerate}
 
 \section{Conclusion}
@@ -1272,13 +1416,21 @@ parts are:
 The method delivers near-centralized tail performance for blocked users at
 an order of magnitude less computation, and $+11.3$ PF utility over
 uncoordinated local optimization. It also overtakes certainty-equivalent
-centralized optimization under stale CSI, and gives a clean energy--utility
-trade-off.
+centralized relay-assisted optimization under stale CSI, though the no-relay
+centralized benchmark keeps a higher mean utility there while RAP-FedWMMSE
+keeps the better tail. Finally, it gives a clean energy--utility trade-off.
 
-The paired decomposition shows where this comes from: mostly the per-layer
-coordination ($+7.3$) and the slow-timescale Steps~1--2 ($+3.1$ to $+3.4$),
-and only modestly the learned parameters ($+0.6$ to $+0.9$), whose main
-benefit is reaching a given utility in fewer layers. The certified bounds and paired
+The paired ablations show where this comes from:
+\begin{itemize}
+  \item mostly the per-layer coordination ($+7.3$) and the slow-timescale
+    phase split ($+3.1$ to $+3.4$; the priced association adds nothing
+    measurable);
+  \item only modestly the learned parameters ($+0.6$ to $+0.9$), whose main
+    benefit is reaching a given utility in fewer layers;
+  \item for the stale-CSI advantage, the damped distributed structure, not
+    the learning or the robust training;
+  \item the QoS machinery had no measurable effect at our operating point.
+\end{itemize} The certified bounds and paired
 statistics also show what the method does not deliver at this scale:
 \begin{itemize}
   \item a utility gain from federation;
@@ -1296,9 +1448,10 @@ figure and table accompany this submission as a code archive. It includes
 (Python 3.12.5; PyTorch 2.14.0, CVXPY 1.9.3, Clarabel 0.11.1, PySCIPOpt
 6.3.0). All channels are synthetic and generated by the included simulator;
 no external dataset is used. The command
-\texttt{run\_experiments.py --drops 100 --deployments 10} reproduces the
+\texttt{python run\_experiments.py --drops 100 --deployments 10} reproduces the
 reported results from seed 42, and \texttt{python -m diagnostics.round2 all}
-reproduces the diagnostic ablations.
+and \texttt{python -m diagnostics.round3 all} reproduce the diagnostic
+ablations.
 
 \begin{thebibliography}{00}
 \bibitem{ngo2017cellfree} H.~Q. Ngo, A.~Ashikhmin, H.~Yang, E.~G. Larsson,

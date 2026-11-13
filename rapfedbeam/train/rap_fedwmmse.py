@@ -516,6 +516,22 @@ class UnfoldedWMMSESlow(Algorithm):
 
 
 @register
+class UnfoldedWMMSETauOnly(UnfoldedWMMSESlow):
+    """Diagnostic: the untrained layers with Step 2's tau search alone. The association keeps zero
+    prices and the slow prices stay at zero, so it separates tau adaptation from the priced
+    association and the warmed-up prices."""
+
+    name = "unfolded_wmmse_tau_only"
+    label = "Unfolded WMMSE, untrained, with Step 2 only"
+    overrides = {"adapt_association": False, "eta_q_epoch": 0.0, "eta_d_epoch": 0.0}
+
+    def solve(self, instance):
+        trainer = _UntrainedTrainer(instance.config, 0, 0, self.relaxation)
+        trainer.settings = {**trainer.settings, **self.overrides}
+        return trainer.solve(instance)
+
+
+@register
 class ClassicalWMMSESlow(UnfoldedWMMSESlow):
     name = "classical_wmmse_slow"
     label = "Per-node WMMSE, undamped, with Steps 1-2"
