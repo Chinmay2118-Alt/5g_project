@@ -64,15 +64,25 @@ The paper's problem formulation (team paper `5G_2026_Chinmay_team.pdf`) is also 
 
 ## 2. What is left to do
 
-| # | Task | Who | Notes |
+**The submission package is built and verified:** `final_submission/Group12_RAP-FedWMMSE_Final_Submission.zip`
+(17.5 MB, not tracked in git). It contains:
+- the paper PDF and `Overleaf_Source.zip`;
+- the all-comments Deep Review PDF and the revision report PDF;
+- the code, with the precomputed results and `REPRODUCIBILITY.md`.
+
+Verification: the Overleaf source compiles standalone; `--plot-only` regenerates all 14 figure CSVs
+byte-identically; `diagnostics.analysis` reproduces every quoted statistic; 87/87 tests pass from the packaged
+code.
+
+| # | Task | Who | Status |
 |---|---|---|---|
-| 1 | Verify teammate emails (`<rollno>@iiitdwd.ac.in`) and author order in `paper/main.tex` | Team | All four use institute emails now |
-| 2 | Export `paper/REVISION_LOG.md` to Word or PDF | Claude/team | Sir asked for revision reports in .docx or .pdf |
-| 3 | Create the Overleaf project | Team | New Project → Upload Project → `paper/Overleaf_Source.zip`; compiles as-is with pdfLaTeX |
-| 4 | Build the submission ZIP | Team/Claude | Overleaf_Source.zip + main.pdf + revision report + code (exclude `.venv/`, `results/`, `.git/`); must be ≤ 100 MB |
-| 5 | Submit the Google Form before 20 Nov, 5 PM | Team | https://forms.gle/9nWd2kZnvqwLCsAKA |
-| 6 | Send `rapfedbeam/docs/REPORT_FOR_SIR.md` to Sir | Team | It lists the 6 interpretation points he should confirm |
-| 7 | Push branch `kushagra` and open a PR into `main` | Needs team approval | 14 local commits exist only on this laptop |
+| 1 | Verify teammate emails (`<rollno>@iiitdwd.ac.in`) and author order in `paper/main.tex` | Team | Open |
+| 2 | Revision reports as Word/PDF | Claude | **Done:** `Revision_Report_Rounds_1-3.pdf` + `DeepReview_All_Comments_Rounds_1-3.pdf` |
+| 3 | Create the Overleaf project | Team | Open. New Project → Upload Project → `Overleaf_Source.zip`; compiles as-is with pdfLaTeX |
+| 4 | Build the submission ZIP | Claude | **Done** and verified (see above) |
+| 5 | Submit the Google Form before 20 Nov, 5 PM | Team | Open. https://forms.gle/9nWd2kZnvqwLCsAKA; upload the ZIP |
+| 6 | Send `rapfedbeam/docs/REPORT_FOR_SIR.md` to Sir | Team | Open. It lists the 6 interpretation points he should confirm |
+| 7 | Push branch `kushagra` and open a PR into `main` | Needs team approval | Open. Local commits exist only on this laptop |
 
 ---
 
