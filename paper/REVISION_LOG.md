@@ -1,9 +1,11 @@
 # Deep Review revision log — Group 12
 
 This log records every Google Deep Review round, as Sir asked: the review comments from each upload, and the
-changes made in each revision. Export it to Word or PDF for the final submission.
+changes made in each revision. Three complete rounds were done. The submitted PDF version is
+`Revision_Report_Rounds_1-3.pdf`.
 
 Rules from Sir's instructions:
+
 - At least TWO complete review–revision rounds are mandatory; a third is strongly recommended.
 - Comments are addressed honestly. If a comment requires rerunning an experiment or correcting an equation,
   that is done and stated here. If a comment is not acted on, the reason is given.
