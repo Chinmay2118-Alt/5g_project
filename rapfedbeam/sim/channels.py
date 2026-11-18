@@ -1,12 +1,19 @@
 """
 sim/channels.py
-Responsibility: sample h_mk, G_mr, g_rk with large-scale fading + small-scale fading,
-apply blockage extra loss, optionally apply channel aging (rho model).
+Responsibility: sample h_mk, G_mr, g_rk from a drop's large-scale fading + small-scale fading,
+optionally apply channel aging (rho model).
 Paper mapping: Sec. VI (channel model), Sec. VII (channel aging / CSI error)
+
+Units: every channel is normalized by the noise power of its receiver, so receiver noise
+variance is 1 and p * |h|^2 is an SNR when p is in Watts.
 """
 
 from dataclasses import dataclass
 import numpy as np
+
+
+# Receiver noise variance after channel normalization.
+NORMALIZED_NOISE_VAR = 1.0
 
 
 @dataclass
@@ -19,23 +26,20 @@ class ChannelSet:
     g_hat: np.ndarray
 
 
-def large_scale_fading_db(distance, path_loss_exponent, shadow_std_db, rng):
-    # PSEUDOCODE:
-    # path_loss_db = path_loss_const + 10 * path_loss_exponent * log10(distance)
-    # shadow_db = rng.normal(0, shadow_std_db)
-    # return -(path_loss_db + shadow_db)   # beta in dB (negative = attenuation)
-    distance = max(float(distance), 1.0)
-    path_loss_db = -30.0 + 10.0 * path_loss_exponent * np.log10(distance)
-    return -(path_loss_db + rng.normal(0.0, shadow_std_db))
+def independent_streams(rng, count):
+    # Draws a fixed amount from rng, so what each stream later consumes cannot shift the others.
+    return [np.random.default_rng(seed) for seed in rng.integers(0, 2**63, size=count)]
 
 
-def apply_blockage(beta_db, blocked_mask, extra_loss_db):
-    # PSEUDOCODE:
-    # beta_db[blocked_ue_indices] -= extra_loss_db
-    # return beta_db
-    result = np.array(beta_db, copy=True)
-    result[..., np.asarray(blocked_mask, dtype=bool)] -= extra_loss_db
-    return result
+def noise_power_w(config, noise_figure_key):
+    link = config["link_budget"]
+    noise_dbm = link["noise_psd_dbm_hz"] + 10.0 * np.log10(link["bandwidth_hz"]) + link[noise_figure_key]
+    return 10.0 ** ((noise_dbm - 30.0) / 10.0)
+
+
+def channel_amplitude(beta_db, noise_w):
+    # sqrt(beta / sigma^2): large-scale amplitude in noise-normalized units
+    return np.sqrt(10.0 ** (np.asarray(beta_db) / 10.0) / noise_w)
 
 
 def small_scale_fading(shape, rng, correlated=True, corr_coeff=0.0):
@@ -53,75 +57,48 @@ def small_scale_fading(shape, rng, correlated=True, corr_coeff=0.0):
     return result
 
 
-def sample_channel_hmk(ap_positions, ue_positions, blocked_mask, n_antennas_ap, rng, config):
-    # PSEUDOCODE:
-    # beta_db = large_scale_fading_db(dist(ap, ue), ...)
-    # beta_db = apply_blockage(beta_db, blocked_mask, config.blockage.extra_loss_db)
-    # beta_lin = 10 ** (beta_db / 10)
-    # small_scale = small_scale_fading((M, K, n_antennas_ap), rng)
-    # h_mk = sqrt(beta_lin) * small_scale
-    # return h_mk   # shape [M, K, N_A]
-    distances = np.maximum(np.linalg.norm(ap_positions[:, None, :] - ue_positions[None, :, :], axis=-1), 1.0)
-    beta_db = np.empty_like(distances)
-    for m in range(len(ap_positions)):
-        for k in range(len(ue_positions)):
-            beta_db[m, k] = large_scale_fading_db(distances[m, k], config["simulation"]["path_loss_exponent"], config["simulation"]["shadow_std_db"], rng)
-    beta_db = apply_blockage(beta_db, blocked_mask, config["blockage"]["extra_loss_db"])
-    return np.sqrt(10.0 ** (beta_db / 10.0))[..., None] * small_scale_fading((len(ap_positions), len(ue_positions), n_antennas_ap), rng, corr_coeff=0.35)
+def sample_channel_hmk(beta_ap_ue_db, n_antennas_ap, noise_w, rng):
+    # h_mk = sqrt(beta_mk / noise) * small_scale, shape [M, K, N_A]
+    beta_db = np.asarray(beta_ap_ue_db)
+    return channel_amplitude(beta_db, noise_w)[..., None] * small_scale_fading((*beta_db.shape, n_antennas_ap), rng, corr_coeff=0.35)
 
 
-def sample_channel_Gmr(ap_positions, relay_positions, n_antennas_ap, n_antennas_relay, rng, config):
-    # PSEUDOCODE: same recipe as sample_channel_hmk but AP-to-relay geometry
-    # return G_mr  # shape [M, R, N_R, N_A]
-    distances = np.maximum(np.linalg.norm(ap_positions[:, None, :] - relay_positions[None, :, :], axis=-1), 1.0)
-    beta_db = np.empty_like(distances)
-    for m in range(len(ap_positions)):
-        for r in range(len(relay_positions)):
-            beta_db[m, r] = large_scale_fading_db(distances[m, r], config["simulation"]["path_loss_exponent"], config["simulation"]["shadow_std_db"], rng)
-    return np.sqrt(10.0 ** (beta_db / 10.0))[:, :, None, None] * small_scale_fading((len(ap_positions), len(relay_positions), n_antennas_relay, n_antennas_ap), rng, corr_coeff=0.35)
+def sample_channel_Gmr(beta_ap_relay_db, n_antennas_ap, n_antennas_relay, noise_w, rng):
+    # G_mr shape [M, R, N_R, N_A]
+    beta_db = np.asarray(beta_ap_relay_db)
+    return channel_amplitude(beta_db, noise_w)[:, :, None, None] * small_scale_fading((*beta_db.shape, n_antennas_relay, n_antennas_ap), rng, corr_coeff=0.35)
 
 
-def sample_channel_grk(relay_positions, ue_positions, n_antennas_relay, rng, config):
-    # PSEUDOCODE: same recipe, relay-to-UE geometry
-    # return g_rk  # shape [R, K, N_R]
-    distances = np.maximum(np.linalg.norm(relay_positions[:, None, :] - ue_positions[None, :, :], axis=-1), 1.0)
-    beta_db = np.empty_like(distances)
-    for r in range(len(relay_positions)):
-        for k in range(len(ue_positions)):
-            beta_db[r, k] = large_scale_fading_db(distances[r, k], config["simulation"]["path_loss_exponent"], config["simulation"]["shadow_std_db"], rng)
-    return np.sqrt(10.0 ** (beta_db / 10.0))[..., None] * small_scale_fading((len(relay_positions), len(ue_positions), n_antennas_relay), rng, corr_coeff=0.35)
+def sample_channel_grk(beta_relay_ue_db, n_antennas_relay, noise_w, rng):
+    # g_rk shape [R, K, N_R]
+    beta_db = np.asarray(beta_relay_ue_db)
+    return channel_amplitude(beta_db, noise_w)[..., None] * small_scale_fading((*beta_db.shape, n_antennas_relay), rng, corr_coeff=0.35)
 
 
-def apply_aging(true_channel, rho, rng):
-    # PSEUDOCODE (paper Sec. VII):
-    # e = sample complex gaussian noise, same shape as true_channel, unit variance
-    # h_hat = rho * true_channel + sqrt(1 - rho**2) * e
-    # return h_hat   # the "estimate" fed to nodes; true_channel used only by sim for rates
+def apply_aging(channel_hat, rho, amplitude, rng):
+    # Paper Sec. VII: h = rho * h_hat + sqrt(1 - rho**2) * e, with e drawn at the same
+    # large-scale power as the link, so the true channel keeps the link's average power.
     if rho >= 1.0:
-        return np.array(true_channel, copy=True)
-    noise = (rng.normal(size=true_channel.shape) + 1j * rng.normal(size=true_channel.shape)) / np.sqrt(2.0)
-    return rho * true_channel + np.sqrt(max(1.0 - rho**2, 0.0)) * noise
+        return np.array(channel_hat, copy=True)
+    shape = channel_hat.shape
+    error = np.asarray(amplitude).reshape(shape[:2] + (1,) * (len(shape) - 2)) * small_scale_fading(shape, rng, corr_coeff=0.0)
+    return rho * channel_hat + np.sqrt(max(1.0 - rho**2, 0.0)) * error
 
 
 def sample_full_channel_set(scenario, config, rng):
-    # PSEUDOCODE:
-    # h_mk  = sample_channel_hmk(...)
-    # G_mr  = sample_channel_Gmr(...)
-    # g_rk  = sample_channel_grk(...)
-    # if config.aging.enabled:
-    #     h_hat = apply_aging(h_mk, rho, rng); etc for G, g
-    # else:
-    #     h_hat = h_mk (treated as perfect CSI, stretch goal to add error)
-    # return ChannelSet(h_mk, G_mr, g_rk, h_hat, G_hat, g_hat)
+    # The samples below are the estimates nodes hold; with aging on, the true channels
+    # that rates are scored on are derived from them (paper Sec. VII).
     network = config["network"]
-    h_mk = sample_channel_hmk(scenario.ap_positions, scenario.ue_positions, scenario.blocked_mask, network["n_antennas_ap"], rng, config)
-    G_mr = sample_channel_Gmr(scenario.ap_positions, scenario.relay_positions, network["n_antennas_ap"], network["n_antennas_relay"], rng, config)
-    g_rk = sample_channel_grk(scenario.relay_positions, scenario.ue_positions, network["n_antennas_relay"], rng, config)
+    noise_ue, noise_relay = noise_power_w(config, "noise_figure_ue_db"), noise_power_w(config, "noise_figure_relay_db")
+    h_rng, G_rng, g_rng, h_age_rng, G_age_rng, g_age_rng = independent_streams(rng, 6)
+    h_hat = sample_channel_hmk(scenario.beta_ap_ue_db, network["n_antennas_ap"], noise_ue, h_rng)
+    G_hat = sample_channel_Gmr(scenario.beta_ap_relay_db, network["n_antennas_ap"], network["n_antennas_relay"], noise_relay, G_rng)
+    g_hat = sample_channel_grk(scenario.beta_relay_ue_db, network["n_antennas_relay"], noise_ue, g_rng)
     aging = config.get("aging", {})
     if aging.get("enabled", False):
-        h_hat = apply_aging(h_mk, aging.get("rho_h", 0.95), rng)
-        G_hat = apply_aging(G_mr, aging.get("rho_G", 0.95), rng)
-        g_hat = apply_aging(g_rk, aging.get("rho_g", 0.95), rng)
+        h_mk = apply_aging(h_hat, aging.get("rho_h", 0.95), channel_amplitude(scenario.beta_ap_ue_db, noise_ue), h_age_rng)
+        G_mr = apply_aging(G_hat, aging.get("rho_G", 0.95), channel_amplitude(scenario.beta_ap_relay_db, noise_relay), G_age_rng)
+        g_rk = apply_aging(g_hat, aging.get("rho_g", 0.95), channel_amplitude(scenario.beta_relay_ue_db, noise_ue), g_age_rng)
     else:
-        h_hat, G_hat, g_hat = h_mk.copy(), G_mr.copy(), g_rk.copy()
+        h_mk, G_mr, g_rk = h_hat.copy(), G_hat.copy(), g_hat.copy()
     return ChannelSet(h_mk, G_mr, g_rk, h_hat, G_hat, g_hat)

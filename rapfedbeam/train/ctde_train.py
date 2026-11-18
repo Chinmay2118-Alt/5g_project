@@ -60,11 +60,9 @@ def forward_all_nodes(node_models, channels_hat, scenario, config):
         relay_powers.append(project_relay_power(logits, power["p_max_relay"], scenario.relay_assoc, r).detach().numpy())
     directions = mrt_beam_directions(h_hat)
     w = build_beams_from_power_coeffs(directions, np.asarray(ap_powers), power["p_max_ap"])
-    relay_directions = np.ones((network["num_relays"], network["num_ues"], network["n_antennas_relay"]), dtype=complex)
-    relay_directions /= np.sqrt(network["n_antennas_relay"])
-    v = build_beams_from_power_coeffs(relay_directions, np.asarray(relay_powers), power["p_max_relay"])
+    v = build_beams_from_power_coeffs(mrt_beam_directions(g_hat), np.asarray(relay_powers), power["p_max_relay"])
     from sim.rates import mmse_combiners
-    return w, v, mmse_combiners(channels_hat.G_hat, w)
+    return w, v, mmse_combiners(channels_hat.G_hat, w, scenario.noise_var_relay)
 
 
 def training_step(node_models, optimizer, config, rng, scenario=None):
@@ -91,11 +89,11 @@ def training_step(node_models, optimizer, config, rng, scenario=None):
     p_max_relay = power_cfg["p_max_relay"]
     tau = config["phase"]["tau_fixed"]
     penalty_w = training_cfg.get("power_penalty_weight", 0.01)
-    noise_var = 1e-3
     eps = 1e-6
 
     if scenario is None:
         scenario = generate_drop(config, rng)
+    noise_var = scenario.noise_var_ue
 
     # Relay association mask (fixed per scenario) — shape [R, K]
     relay_mask = torch.zeros(network["num_relays"], network["num_ues"], dtype=torch.float32)
@@ -206,6 +204,7 @@ def train_stage_b(config):
     #     log loss, periodically evaluate on held-out drops (eval/metrics.py)
     # return trained node_models
     network, model_config = config["network"], config.get("models", {})
+    torch.manual_seed(config.get("seed", 42))
     ap_dim = network["num_ues"] * network["n_antennas_ap"] + network["num_relays"] * network["n_antennas_relay"] * network["n_antennas_ap"]
     relay_dim = network["num_aps"] * network["n_antennas_relay"] * network["n_antennas_ap"] + network["num_ues"] * network["n_antennas_relay"]
     node_models = {

@@ -5,55 +5,17 @@ import argparse
 import numpy as np
 import yaml
 
-from baselines.heuristics import equal_power, fractional_power, no_relay_scenario, relay_power_equal_or_fractional
+from baselines.heuristics import heuristic_solution
+from eval.metrics import evaluate_solution, pf_utility
 from eval.plots import plot_policy_vs_heuristics_bar, plot_rate_cdf, plot_tau_sweep
-from sim.channels import sample_full_channel_set
-from sim.rates import build_beams_from_power_coeffs, compute_full_rates, mmse_combiners, mrt_beam_directions
-from sim.scenario import generate_drop
+from sim.problem import make_instance
 
 
-def evaluate_drop(config, rng, use_relay=True, allocation="equal", tau=None):
-    scenario = generate_drop(config, rng)
-    channels = sample_full_channel_set(scenario, config, rng)
-    if not use_relay:
-        scenario = no_relay_scenario(scenario)
-
-    directions_ap = mrt_beam_directions(channels.h_hat)
-    if allocation == "fractional":
-        ap_coeffs = fractional_power(
-            10.0 ** (scenario.beta_ap_ue_db / 10.0),
-            scenario.cluster_mask,
-            config["power"]["p_max_ap"],
-        )
-    else:
-        ap_coeffs = equal_power(scenario.cluster_mask, config["power"]["p_max_ap"])
-    beams_ap = build_beams_from_power_coeffs(directions_ap, ap_coeffs, config["power"]["p_max_ap"])
-
-    relay_coeffs = relay_power_equal_or_fractional(
-        scenario.relay_assoc,
-        config["power"]["p_max_relay"],
-        config["network"]["num_relays"],
-        10.0 ** (scenario.beta_relay_ue_db / 10.0),
-        fractional=allocation == "fractional",
-    )
-    if not use_relay:
-        relay_coeffs.fill(0.0)
-    relay_directions = np.ones(
-        (config["network"]["num_relays"], config["network"]["num_ues"], config["network"]["n_antennas_relay"]),
-        dtype=complex,
-    )
-    relay_directions /= np.sqrt(config["network"]["n_antennas_relay"])
-    beams_relay = build_beams_from_power_coeffs(relay_directions, relay_coeffs, config["power"]["p_max_relay"])
-    combiners = mmse_combiners(channels.G_hat, beams_ap)
-    rates, debug = compute_full_rates(
-        scenario,
-        channels,
-        beams_ap,
-        beams_relay,
-        combiners,
-        tau if tau is not None else config["phase"]["tau_fixed"],
-    )
-    return rates, debug, scenario
+def evaluate_drop(config, seed, drop_idx, use_relay=True, allocation="equal", tau=None):
+    instance = make_instance(config, seed, drop_idx)
+    solution = heuristic_solution(instance, allocation, use_relay, tau=tau)
+    metrics = evaluate_solution(instance, solution)
+    return metrics["rates"], metrics["debug"], instance.scenario
 
 
 def main():
@@ -66,6 +28,7 @@ def main():
     with Path(args.config).open() as config_file:
         config = yaml.safe_load(config_file)
     base_seed = int(config.get("seed", 42))
+    epsilon_0 = config["objective"]["epsilon_0"]
 
     results = {}
     for label, use_relay, allocation in (
@@ -75,23 +38,23 @@ def main():
     ):
         rates = []
         for drop_idx in range(args.drops):
-            drop_rates, _, _ = evaluate_drop(config, np.random.default_rng(base_seed + drop_idx), use_relay, allocation)
+            drop_rates, _, _ = evaluate_drop(config, base_seed, drop_idx, use_relay, allocation)
             rates.append(drop_rates)
         values = np.asarray(rates)
         results[label] = values
-        print(f"{label}: mean={values.mean():.4f} bit/s/Hz, p5={np.percentile(values, 5):.4f}, PF={np.log(values + 1e-6).sum(axis=1).mean():.4f}")
+        print(f"{label}: mean={values.mean():.4f} bit/s/Hz, p5={np.percentile(values, 5):.4f}, PF={pf_utility(values, epsilon_0=epsilon_0).mean():.4f}")
 
     plot_dir = Path(args.plot_dir)
     plot_dir.mkdir(parents=True, exist_ok=True)
     plot_rate_cdf(results, "Relay and power-policy comparison", plot_dir / "rate_cdf.png")
-    policy_utilities = {label: float(np.log(values + 1e-6).sum(axis=1).mean()) for label, values in results.items()}
+    policy_utilities = {label: float(pf_utility(values, epsilon_0=epsilon_0).mean()) for label, values in results.items()}
     plot_policy_vs_heuristics_bar(policy_utilities, plot_dir / "policy_pf_utility.png")
 
     print("\nTau sweep, relay + equal power:")
     tau_values = config["phase"]["tau_sweep"]
     tau_means, tau_p5 = [], []
     for tau in tau_values:
-        rates = [evaluate_drop(config, np.random.default_rng(base_seed + i), True, "equal", tau)[0] for i in range(args.drops)]
+        rates = [evaluate_drop(config, base_seed, i, True, "equal", tau)[0] for i in range(args.drops)]
         values = np.asarray(rates)
         tau_means.append(float(values.mean()))
         tau_p5.append(float(np.percentile(values, 5)))
