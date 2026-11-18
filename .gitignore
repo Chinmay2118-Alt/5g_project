@@ -1,21 +1,39 @@
+# ---------------------------------------------------------------------------
+# Generated results (regenerate with run_experiments.py and the diagnostics;
+# the final figures and their CSVs are committed in rapfedbeam/figures/)
+# ---------------------------------------------------------------------------
+rapfedbeam/results/
 
-5G_2026_Chinmay_team (1).pdf
-RAP-FedBeam_Reduced_Implementation_Architecture_260927_001159.pdf
-
+# ---------------------------------------------------------------------------
+# Python
+# ---------------------------------------------------------------------------
 __pycache__/
 *.py[cod]
+*.egg-info/
 .pytest_cache/
 .venv/
 venv/
-*.egg-info/
-.DS_Store
-rapfedbeam/results/
-paper/*.aux
-paper/*.log
-paper/*.out
+env/
+
+# ---------------------------------------------------------------------------
+# LaTeX build files (the compiled paper/main.pdf is committed)
+# ---------------------------------------------------------------------------
+*.aux
+*.log
+*.out
+*.toc
+*.bbl
+*.blg
+*.fls
+*.fdb_latexmk
+*.synctex.gz
 paper/Overleaf_Source.zip
-guide/*.aux
-guide/*.log
-guide/*.out
-guide/*.toc
-final_submission/
+
+# ---------------------------------------------------------------------------
+# Editors and operating systems
+# ---------------------------------------------------------------------------
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

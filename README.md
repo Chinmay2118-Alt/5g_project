@@ -7,8 +7,6 @@ Role-aware personalized federated beam optimization for intelligent-relay-assist
 | [REPRODUCIBILITY.md](REPRODUCIBILITY.md) | Install, data (synthetic), parameters, seeds, and the exact commands for every result and figure |
 | [rapfedbeam/](rapfedbeam/) | The code ([README](rapfedbeam/README.md)); the 14 figures are in `rapfedbeam/figures/` |
 | [paper/](paper/) | The IEEE paper (`main.tex`, `main.pdf`) and the Google Deep Review revision log |
-| [HANDOVER.md](HANDOVER.md) | Complete project reference: every result, decision and change |
-| [guide/PROJECT_GUIDE.pdf](guide/PROJECT_GUIDE.pdf) | The whole project explained in simple language |
 
 Quick start: `python -m venv .venv`, activate it, `python -m pip install -r requirements-lock.txt`, then from
 `rapfedbeam/` run `python -m pytest -q` and `python run_experiments.py --drops 100 --deployments 10`.

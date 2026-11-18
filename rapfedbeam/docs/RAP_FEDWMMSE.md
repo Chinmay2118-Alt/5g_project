@@ -97,7 +97,7 @@ global J, to machine precision.
 **ζ is larger than Sir's list.** Sir lists per-UE scalars (prices, aggregate interference, desired-signal
 statistics). An exact gradient needs the per-stream gains S_kj, which take K² numbers per phase rather than K.
 They are still independent of the antenna counts. Over-the-air, a UE measures them from precoded pilots. See
-[Overhead](#overhead) for the honest count.
+[Overhead](#overhead) for the full count.
 
 **"Learned regularization".** Adding (λ/2)‖W_m‖² to the node's quadratic WMMSE surrogate and taking a Newton step
 of length η gives

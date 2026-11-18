@@ -2,7 +2,7 @@
 
 Role-aware personalized federated beam optimization for intelligent-relay-assisted cell-free massive MIMO.
 
-This repository implements Sir's algorithm, **RAP-FedWMMSE**: unfolded WMMSE with learned parameters, primal-dual
+This repository implements **RAP-FedWMMSE**: unfolded WMMSE with learned parameters, primal-dual
 QoS and DF correction, and event-triggered, compressed, topology-aware personalized federated learning. It also
 implements every baseline it is compared against, including an exact MINLP solved by spatial branch-and-bound, and it
 produces the 14 comparison figures in [`figures/`](figures/).
@@ -19,7 +19,7 @@ python -m pip install -r requirements.txt
 Then, from `rapfedbeam/`:
 
 ```bash
-python -m pytest -q                                          # 85 tests, about 2.5 minutes
+python -m pytest -q                                          # 87 tests, about 2.5 minutes
 python run_experiments.py --drops 100 --deployments 10       # the final run, about 3 hours on 12 cores
 python run_experiments.py --experiments energy               # a single sweep
 python run_experiments.py --plot-only                        # redraw the figures from saved results
@@ -42,7 +42,7 @@ Times: one clean run (`python -m diagnostics.runtime`), every method on the same
 Extra ablations and diagnostics for the paper's review: `python -m diagnostics.round2 all`. Exact package versions:
 `requirements-lock.txt` at the repository root.
 
-The findings, including what did not work, are in [docs/REPORT_FOR_SIR.md](docs/REPORT_FOR_SIR.md).
+The findings, including what did not work, are in the paper ([`../paper/main.pdf`](../paper/main.pdf)).
 
 ## Figures
 
@@ -60,7 +60,6 @@ The findings, including what did not work, are in [docs/REPORT_FOR_SIR.md](docs/
 
 | Document | Contents |
 |---|---|
-| [docs/REPORT_FOR_SIR.md](docs/REPORT_FOR_SIR.md) | Results, findings, interpretation points and assumptions, for Sir |
 | [docs/RAP_FEDWMMSE.md](docs/RAP_FEDWMMSE.md) | **The main algorithm**: each step mapped to the code, and every interpretation choice |
 | [docs/BASELINES.md](docs/BASELINES.md) | Every algorithm, the shared choices, and known limits |
 | [docs/GRAPH_PLAN.md](docs/GRAPH_PLAN.md) | The 14 figures and how the comparison is kept fair |
@@ -79,7 +78,7 @@ experiments/  algorithm registry, sweep runner, sweep definitions
 eval/         scoring (metrics.py), the 14 figures (figures.py), earlier plots (plots.py)
 models/       role adapters and the shared backbone, used by RAP-FedWMMSE
 figures/      the final 14 figures with their CSVs
-docs/         report for Sir, algorithm, baselines, derivation, graph plan
+docs/         algorithm, baselines, derivation, graph plan
 tests/        closed forms, solver cross-checks, RAP-FedWMMSE step by step, L_max > 1, the experiment harness
 ```
 
